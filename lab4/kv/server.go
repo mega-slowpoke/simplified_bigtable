@@ -21,6 +21,8 @@ type KvServerImpl struct {
 	shutdown   chan struct{}
 
 	shards map[int]*Shard // keep track of actually sharding data
+
+	cleanupChan chan struct{} // close the watch dog
 }
 
 type Shard struct {
@@ -52,11 +54,12 @@ func (server *KvServerImpl) shardMapListenLoop() {
 func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *KvServerImpl {
 	listener := shardMap.MakeListener()
 	server := KvServerImpl{
-		nodeName:   nodeName,
-		shardMap:   shardMap,
-		listener:   &listener,
-		clientPool: clientPool,
-		shutdown:   make(chan struct{}),
+		nodeName:    nodeName,
+		shardMap:    shardMap,
+		listener:    &listener,
+		clientPool:  clientPool,
+		shutdown:    make(chan struct{}),
+		cleanupChan: make(chan struct{}),
 	}
 
 	logrus.WithFields(
@@ -71,6 +74,9 @@ func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *K
 		}
 	}
 
+	// clean expiry
+	go server.ExpireCleanUpWatchdog()
+
 	go server.shardMapListenLoop()
 	server.handleShardMapUpdate()
 	return &server
@@ -78,6 +84,8 @@ func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *K
 
 func (server *KvServerImpl) Shutdown() {
 	server.shutdown <- struct{}{}
+	server.cleanupChan <- struct{}{}
+	close(server.cleanupChan)
 	server.listener.Close()
 }
 
@@ -100,6 +108,10 @@ func (server *KvServerImpl) Get(
 
 	//  get corresponding shard
 	shardPtr := server.GetCorrespondingShard(key)
+	if shardPtr == nil {
+		return &proto.GetResponse{}, status.Error(codes.NotFound, "this request is not supposed to be directed to this shard")
+	}
+
 	shardPtr.mu.Lock()
 	defer shardPtr.mu.Unlock()
 	val, ok := shardPtr.dataMap[key]
@@ -147,13 +159,16 @@ func (server *KvServerImpl) Set(
 	}
 
 	//  get corresponding shard
+	shardPtr := server.GetCorrespondingShard(key)
+	if shardPtr == nil {
+		return &proto.SetResponse{}, status.Error(codes.NotFound, "this request is not supposed to be directed to this shard")
+	}
+
+	//  reset value
 	valueContent := request.Value
 	TtlMs := request.TtlMs
-	shardPtr := server.GetCorrespondingShard(key)
 	shardPtr.mu.Lock()
 	defer shardPtr.mu.Unlock()
-
-	// 2. reset value
 	shardPtr.dataMap[key] = Value{
 		content:    valueContent,
 		expiryTime: time.Now().Add(time.Duration(TtlMs) * time.Millisecond),
@@ -178,6 +193,10 @@ func (server *KvServerImpl) Delete(
 
 	//  get corresponding shard
 	shardPtr := server.GetCorrespondingShard(key)
+	if shardPtr == nil {
+		return &proto.DeleteResponse{}, status.Error(codes.NotFound, "this request is not supposed to be directed to this shard")
+	}
+
 	shardPtr.mu.Lock()
 	defer shardPtr.mu.Unlock()
 	delete(shardPtr.dataMap, key)
@@ -193,6 +212,31 @@ func (server *KvServerImpl) GetShardContents(
 
 func (server *KvServerImpl) GetCorrespondingShard(key string) *Shard {
 	numShards := server.shardMap.NumShards()
-	shardId := GetShardForKey(key, numShards) - 1
-	return server.shards[shardId]
+	expectedShardId := GetShardForKey(key, numShards)
+	hostShards := server.shardMap.ShardsForNode(server.nodeName)
+	if !isHosted(hostShards, expectedShardId) {
+		return nil
+	}
+	return server.shards[expectedShardId-1]
+}
+
+func (server *KvServerImpl) ExpireCleanUpWatchdog() {
+	for {
+		select {
+		case <-server.cleanupChan:
+			return
+		default:
+			time.Sleep(time.Microsecond * 10)
+			for _, shard := range server.shards {
+				shard.mu.Lock()
+				for key, val := range shard.dataMap {
+					if val.expiryTime.Before(time.Now()) {
+						delete(shard.dataMap, key)
+					}
+				}
+				shard.mu.Unlock()
+			}
+		}
+
+	}
 }

@@ -14,3 +14,13 @@ func GetShardForKey(key string, numShards int) int {
 func CheckKeyIsNull(key string) bool {
 	return len(key) == 0
 }
+
+func isHosted(hostShardIds []int, targetShardId int) bool {
+	for _, shardId := range hostShardIds {
+		if shardId == targetShardId {
+			return true
+		}
+	}
+
+	return false
+}
