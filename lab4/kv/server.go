@@ -20,9 +20,10 @@ type KvServerImpl struct {
 	clientPool ClientPool
 	shutdown   chan struct{}
 
-	shards map[int]*Shard // keep track of actually sharding data
-
-	cleanupChan chan struct{} // close the watch dog
+	shards        map[int]*Shard   // keep track of actually sharding data
+	curHostShards map[int]struct{} // keep track of the shardId hosted on this node
+	cleanupChan   chan struct{}    // close the watch dog
+	updateLock    sync.Mutex
 }
 
 type Shard struct {
@@ -36,7 +37,22 @@ type Value struct {
 }
 
 func (server *KvServerImpl) handleShardMapUpdate() {
-	// TODO: Part C
+	server.updateLock.Lock()
+	defer server.updateLock.Unlock()
+
+	newHostShards := server.shardMap.ShardsForNode(server.nodeName)
+	curHostShards := server.curHostShards
+
+	toRemove := make(map[int]struct{})
+	toAdd := make(map[int]struct{})
+
+	for _, shardName := range newHostShards {
+		shardIdx := GetShardIdx(shardName)
+		if _, ok := curHostShards[shardIdx]; !ok {
+			toRemove[shardIdx] = struct{}{}
+		}
+	}
+
 }
 
 func (server *KvServerImpl) shardMapListenLoop() {
@@ -207,17 +223,28 @@ func (server *KvServerImpl) GetShardContents(
 	ctx context.Context,
 	request *proto.GetShardContentsRequest,
 ) (*proto.GetShardContentsResponse, error) {
-	panic("TODO: Part C")
+	shardIdx := GetShardIdx(int(request.Shard))
+	shardContent := server.shards[shardIdx].dataMap
+	lst := make([]*proto.GetShardValue, 0)
+	for k, v := range shardContent {
+		if v.expiryTime.Before(time.Now()) {
+			lst = append(lst, &proto.GetShardValue{
+				Key:            k,
+				Value:          v.content,
+				TtlMsRemaining: v.expiryTime.UnixMilli(),
+			})
+		}
+	}
+	return &proto.GetShardContentsResponse{Values: lst}, nil
 }
 
 func (server *KvServerImpl) GetCorrespondingShard(key string) *Shard {
 	numShards := server.shardMap.NumShards()
-	expectedShardId := GetShardForKey(key, numShards)
-	hostShards := server.shardMap.ShardsForNode(server.nodeName)
-	if !isHosted(hostShards, expectedShardId) {
+	expectedShardName := GetShardForKey(key, numShards)
+	if !isHosted(server.curHostShards, expectedShardName) {
 		return nil
 	}
-	return server.shards[expectedShardId-1]
+	return server.shards[GetShardIdx(expectedShardName)]
 }
 
 func (server *KvServerImpl) ExpireCleanUpWatchdog() {
@@ -237,6 +264,5 @@ func (server *KvServerImpl) ExpireCleanUpWatchdog() {
 				shard.mu.Unlock()
 			}
 		}
-
 	}
 }
