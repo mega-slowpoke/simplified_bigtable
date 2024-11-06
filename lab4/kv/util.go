@@ -15,11 +15,16 @@ func CheckKeyIsNull(key string) bool {
 	return len(key) == 0
 }
 
-func isHosted(hostShardIds map[int]struct{}, targetShardId int) bool {
+func isHosted(hostShardIds map[int]*Shard, targetShardId int) bool {
 	_, ok := hostShardIds[targetShardId]
 	return ok
 }
 
-func GetShardIdx(shardName int) int {
-	return shardName - 1
+func ContainShard(shardList []int, shard int) bool {
+	for _, shardId := range shardList {
+		if shard == shardId {
+			return true
+		}
+	}
+	return false
 }
