@@ -216,7 +216,7 @@ func (server *KvServerImpl) Set(
 	defer shardPtr.mu.Unlock()
 	shardPtr.dataMap[key] = Value{
 		content:    valueContent,
-		expiryTime: time.Now().Add(time.Duration(TtlMs)),
+		expiryTime: time.Now().Add(time.Duration(TtlMs) * time.Millisecond),
 	}
 
 	return &proto.SetResponse{}, nil
