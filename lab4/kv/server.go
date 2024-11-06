@@ -2,10 +2,11 @@ package kv
 
 import (
 	"context"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"cs426.yale.edu/lab4/kv/proto"
 	"github.com/sirupsen/logrus"
@@ -21,7 +22,8 @@ type KvServerImpl struct {
 	shutdown   chan struct{}
 
 	shards      map[int]*Shard // keep track of actually sharding data
-	cleanupChan chan struct{}  // close the watch dog
+	shardsLock  sync.RWMutex
+	cleanupChan chan struct{} // close the watch dog
 	updateLock  sync.Mutex
 }
 
@@ -39,50 +41,38 @@ func (server *KvServerImpl) handleShardMapUpdate() {
 	server.updateLock.Lock()
 	defer server.updateLock.Unlock()
 
-	// move to a map so the lookup can be O(1)
 	newHostShards := server.shardMap.ShardsForNode(server.nodeName)
 
 	toRemove := make(map[int]struct{})
 	toAdd := make(map[int]struct{})
 
-	// in cur shards but not in newHostShards
+	// Lock for reading `server.shards`
+	server.shardsLock.RLock()
 	for shardIdx := range server.shards {
 		if !ContainShard(newHostShards, shardIdx) {
 			toRemove[shardIdx] = struct{}{}
 		}
 	}
+	server.shardsLock.RUnlock()
 
-	// in newHostShards, not in cur shards
 	for _, shardIdx := range newHostShards {
-		if _, exists := server.shards[shardIdx]; !exists {
+		server.shardsLock.RLock()
+		_, exists := server.shards[shardIdx]
+		server.shardsLock.RUnlock()
+		if !exists {
 			toAdd[shardIdx] = struct{}{}
 		}
 	}
 
-	// remove toRemove
-	var wgRemove sync.WaitGroup
-	for shardIdx := range toRemove {
-		wgRemove.Add(1)
-		go func(idx int) {
-			lock := &server.shards[idx].mu
-			lock.Lock()
-			delete(server.shards, idx)
-			lock.Unlock()
-		}(shardIdx)
-	}
-
-	// add toAdd
-	var wgAdd sync.WaitGroup
+	// Process shard additions first
 	for shardIdx := range toAdd {
-		wgAdd.Add(1)
-		go func(idx int) {
-			defer wgAdd.Done()
-			server.CopyShardData(idx)
-		}(shardIdx)
+		server.CopyShardData(shardIdx)
 	}
 
-	wgAdd.Wait()
-	wgRemove.Wait()
+	// Process shard removals
+	for shardIdx := range toRemove {
+		server.removeShard(shardIdx)
+	}
 }
 
 func (server *KvServerImpl) shardMapListenLoop() {
@@ -253,8 +243,13 @@ func (server *KvServerImpl) GetShardContents(
 	request *proto.GetShardContentsRequest,
 ) (*proto.GetShardContentsResponse, error) {
 	shardIdx := int(request.Shard)
-	shardPtr := server.shards[shardIdx]
-	if shardPtr == nil {
+
+	// Lock for reading `server.shards`
+	server.shardsLock.RLock()
+	shardPtr, exists := server.shards[shardIdx]
+	server.shardsLock.RUnlock()
+
+	if !exists {
 		logrus.WithFields(
 			logrus.Fields{"node": server.nodeName},
 		).Debugf("get shard content call fails")
@@ -286,10 +281,15 @@ func (server *KvServerImpl) GetShardContents(
 func (server *KvServerImpl) GetCorrespondingShard(key string) *Shard {
 	numShards := server.shardMap.NumShards()
 	expectedShardId := GetShardForKey(key, numShards)
-	if !isHosted(server.shards, expectedShardId) {
+
+	server.shardsLock.RLock()
+	shard, ok := server.shards[expectedShardId]
+	server.shardsLock.RUnlock()
+
+	if !ok {
 		return nil
 	}
-	return server.shards[expectedShardId]
+	return shard
 }
 
 func (server *KvServerImpl) ExpireCleanUpWatchdog() {
@@ -299,7 +299,16 @@ func (server *KvServerImpl) ExpireCleanUpWatchdog() {
 			return
 		default:
 			time.Sleep(time.Microsecond * 10)
-			for _, shard := range server.shards {
+
+			server.shardsLock.RLock()
+			shardsCopy := make(map[int]*Shard)
+			for shardIdx, shard := range server.shards {
+				shardsCopy[shardIdx] = shard
+			}
+			server.shardsLock.RUnlock()
+
+			// Iterate over a copy to avoid holding the lock for long
+			for _, shard := range shardsCopy {
 				shard.mu.Lock()
 				for key, val := range shard.dataMap {
 					if val.expiryTime.Before(time.Now()) {
@@ -345,56 +354,65 @@ func (server *KvServerImpl) CopyShardData(shardIdx int) {
 			continue
 		}
 
+		// FIX1: time.Duration 默认是 nanosecond，所以要乘以 time.Millisecond
 		for _, pairs := range response.Values {
 			k := pairs.Key
 			v := pairs.Value
-			ttlRemaining := pairs.TtlMsRemaining
+			ttlRemainingMs := pairs.TtlMsRemaining
+			if ttlRemainingMs <= 0 {
+				continue
+			}
 			newShardData[k] = Value{
 				content:    v,
-				expiryTime: time.Now().Add(time.Duration(ttlRemaining)),
+				expiryTime: time.Now().Add(time.Duration(ttlRemainingMs) * time.Millisecond),
 			}
 		}
-		logrus.WithFields(
-			logrus.Fields{"node": server.nodeName},
-		).Debugf("get all shard %v contents %v", shardIdx, newShardData)
 
-		shardPtr, ok := server.shards[shardIdx]
-		if !ok {
-			// if such shard not exist
+		server.shardsLock.Lock()
+		if _, exists := server.shards[shardIdx]; !exists {
 			server.shards[shardIdx] = &Shard{
 				dataMap: newShardData,
 				mu:      sync.RWMutex{},
 			}
 		} else {
-			// if shardIdx exists, lock first to avoid race condition
+			shardPtr := server.shards[shardIdx]
 			shardPtr.mu.Lock()
-			server.shards[shardIdx].dataMap = newShardData
+			shardPtr.dataMap = newShardData
 			shardPtr.mu.Unlock()
 		}
-		server.shards[shardIdx].mu.Lock()
+		server.shardsLock.Unlock()
+
 		logrus.WithFields(
 			logrus.Fields{"node": server.nodeName},
-		).Debugf("Successfully copied shard %d data from peer content: %v", shardIdx, server.shards[shardIdx].dataMap)
-		server.shards[shardIdx].mu.Unlock()
+		).Debugf("Successfully copied shard %d data from peer", shardIdx)
 		return
 	}
 
-	// fail to get shard data from peers
-	shardPtr, ok := server.shards[shardIdx]
-	if !ok {
+	// If all attempts to copy data failed, initialize as an empty shard
+	server.shardsLock.Lock()
+	if _, exists := server.shards[shardIdx]; !exists {
 		server.shards[shardIdx] = &Shard{
 			dataMap: newShardData,
 			mu:      sync.RWMutex{},
 		}
-	} else {
-		shardPtr.mu.Lock()
-		server.shards[shardIdx].dataMap = newShardData
-		shardPtr.mu.Unlock()
 	}
+	server.shardsLock.Unlock()
 
-	server.shards[shardIdx].mu.Lock()
 	logrus.WithFields(
 		logrus.Fields{"node": server.nodeName},
 	).Debugf("Failed to copy shard %d data from all peers, initializing as empty", shardIdx)
-	server.shards[shardIdx].mu.Unlock()
+}
+
+func (server *KvServerImpl) removeShard(shardIdx int) {
+	// Lock for writing to `server.shards`
+	server.shardsLock.Lock()
+	defer server.shardsLock.Unlock()
+
+	shardPtr, exists := server.shards[shardIdx]
+	if !exists {
+		return
+	}
+	shardPtr.mu.Lock()
+	delete(server.shards, shardIdx)
+	shardPtr.mu.Unlock()
 }
