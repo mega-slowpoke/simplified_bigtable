@@ -2,6 +2,7 @@ package kv
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -330,7 +331,11 @@ func (server *KvServerImpl) CopyShardData(shardIdx int) {
 	peers := server.shardMap.NodesForShard(shardIdx)
 	newShardData := make(map[string]Value)
 
-	for _, peer := range peers {
+	// load balancing
+	peerNum := len(peers)
+	startIdx := rand.Intn(peerNum)
+	for i := 0; i < peerNum; i++ {
+		peer := peers[(startIdx+i)%peerNum]
 		// don't call the current node
 		if peer == server.nodeName {
 			continue
