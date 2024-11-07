@@ -1,0 +1,15 @@
+ESTIMATE of time to complete assignment: 13 hours
+
+        Time       Time
+Date    Started    Spent     Work completed
+----    -------    ----      --------------
+11/1    2:00 PM    1 hours   Read the specification. Discussed with my groupmate.
+11/2    1:00 PM    3 hours   Implementing Part B.
+11/3    2:00 PM    2 hours   Implemented and tested Part B.
+11/4    2:00 PM    2 hours   Debugged, tested Part B.
+11/5    6:00 PM    2 hours   Debugged the whole project.
+11/6    10:00 AM   3 hours   Finished Part D.
+
+TOTAL time spent: 13 hours
+
+In this lab, I applied the lessons learned from my previous project, where starting late limited my comprehension. This time, I began early and dedicated more focus to grasp every concept thoroughly. The project reinforced my understanding of Go's concurrency model and server-side programming, building on my foundational knowledge from previous labs. I gained practical experience in implementing thread-safe data structures, handling sharding and replication, and managing failovers and error handling. This hands-on work improved my problem-solving skills and deepened my confidence in building robust distributed systems. Overall, this lab was an invaluable exercise in developing resilient and scalable key-value storage solutions.
