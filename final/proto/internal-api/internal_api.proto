@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bigtable;
 
-option go_package = "github.com/mega-slowpoke/bigtable/internal-api/proto";
+option go_package = "/.";
 
 
 // Service for master-server interactions

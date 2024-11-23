@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bigtable;
 
-option go_package = "github.com/mega-slowpoke/bigtable/external-api/proto";
+option go_package="/.";
 
 // Service for metadata lookup (root and metadata tablets)
 service TabletService {
