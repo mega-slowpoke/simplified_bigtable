@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package bigtable;
+
+option go_package = "github.com/mega-slowpoke/bigtable/external-api/proto";
+
+// Service for metadata lookup (root and metadata tablets)
+service TabletService {
+  rpc GetTabletLocation (TabletLocationRequest) returns (TabletLocationResponse);
+}
+
+// Service for client interactions with user tablet servers
+service BigtableService {
+  rpc Read (ReadRequest) returns (ReadResponse);
+  rpc Write (WriteRequest) returns (WriteResponse);
+  rpc Delete (DeleteRequest) returns (DeleteResponse);
+  rpc Scan (ScanRequest) returns (stream ScanResponse);
+}
+
+// Messages for tablet location lookup
+message TabletLocationRequest {
+  string table_name = 1;
+  string row_key = 2;
+}
+
+message TabletLocationResponse {
+  string server_address = 1;      // Address of the server hosting the tablet
+  string tablet_type = 2;         // Type of the tablet: "ROOT", "METADATA", "USER"
+  string tablet_start_row = 3;    // Start of the tablet's row range
+  string tablet_end_row = 4;      // End of the tablet's row range
+}
+
+// Messages for data operations
+message ReadRequest {
+  string table_name = 1;
+  string row_key = 2;
+  string column_family = 3;
+  string column_qualifier = 4;
+}
+
+message ReadResponse {
+  bytes value = 1;
+  int64 timestamp = 2;
+}
+
+message WriteRequest {
+  string table_name = 1;
+  string row_key = 2;
+  string column_family = 3;
+  string column_qualifier = 4;
+  bytes value = 5;
+  int64 timestamp = 6;
+}
+
+message WriteResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message DeleteRequest {
+  string table_name = 1;
+  string row_key = 2;
+  string column_family = 3;
+  string column_qualifier = 4;
+}
+
+message DeleteResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message ScanRequest {
+  string table_name = 1;
+  string start_row_key = 2;
+  string end_row_key = 3;
+  string column_family = 4;
+  string column_qualifier = 5;
+}
+
+message ScanResponse {
+  string row_key = 1;
+  bytes value = 2;
+  int64 timestamp = 3;
+}

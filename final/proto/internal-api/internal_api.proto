@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package bigtable;
+
+option go_package = "github.com/mega-slowpoke/bigtable/internal-api/proto";
+
+
+// Service for master-server interactions
+service MasterService {
+  rpc AssignTablet (AssignTabletRequest) returns (AssignTabletResponse);
+  rpc UnassignTablet (UnassignTabletRequest) returns (UnassignTabletResponse);
+  rpc GetTabletAssignments (GetTabletAssignmentsRequest) returns (GetTabletAssignmentsResponse);
+  rpc ReportTabletStatus (ReportTabletStatusRequest) returns (ReportTabletStatusResponse);
+}
+
+// Messages for master-server interactions
+message AssignTabletRequest {
+  string table_name = 1;
+  string tablet_start_row = 2;
+  string tablet_end_row = 3;
+  string server_address = 4;
+}
+
+message AssignTabletResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message UnassignTabletRequest {
+  string table_name = 1;
+  string tablet_start_row = 2;
+  string tablet_end_row = 3;
+}
+
+message UnassignTabletResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message GetTabletAssignmentsRequest {
+  string table_name = 1;
+}
+
+message GetTabletAssignmentsResponse {
+  repeated TabletAssignment tablet_assignments = 1;
+}
+
+message TabletAssignment {
+  string tablet_start_row = 1;
+  string tablet_end_row = 2;
+  string server_address = 3;
+}
+
+// OPTIONAL IN MVP
+message ReportTabletStatusRequest {
+  string table_name = 1;
+  string tablet_start_row = 2;
+  string tablet_end_row = 3;
+  string server_address = 4;
+  string status = 5;  // e.g., "HEALTHY", "UNRESPONSIVE", etc.
+}
+
+message ReportTabletStatusResponse {
+  bool success = 1;
+  string error_message = 2;
+}
