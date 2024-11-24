@@ -18,8 +18,7 @@ message TabletLocationRequest {
 
 message TabletLocationResponse {
   string server_address = 1;      // Address of the server hosting the tablet
-  string tablet_type = 2;         // Type of the tablet: "ROOT", "METADATA", "USER"
-  string tablet_start_row = 3;    // Start of the tablet's row range
-  string tablet_end_row = 4;      // End of the tablet's row range
+  string tablet_start_row = 2;    // Start of the tablet's row range
+  string tablet_end_row = 3;      // End of the tablet's row range
 }
 
