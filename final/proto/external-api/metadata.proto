@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package bigtable;
+
+option go_package = "final/proto";
+
+// Service for metadata lookup (root and metadata tablets)
+service MetadataService {
+  rpc GetTabletLocation (TabletLocationRequest) returns (TabletLocationResponse);
+}
+
+
+// Messages for tablet location lookup
+message TabletLocationRequest {
+  string table_name = 1;
+  string row_key = 2;
+}
+
+message TabletLocationResponse {
+  string server_address = 1;      // Address of the server hosting the tablet
+  string tablet_type = 2;         // Type of the tablet: "ROOT", "METADATA", "USER"
+  string tablet_start_row = 3;    // Start of the tablet's row range
+  string tablet_end_row = 4;      // End of the tablet's row range
+}
+
