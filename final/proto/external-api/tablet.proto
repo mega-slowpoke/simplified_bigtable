@@ -19,11 +19,16 @@ message ReadRequest {
   string row_key = 2;
   string column_family = 3;
   string column_qualifier = 4;
+  int64 max_version = 5;
 }
 
 message ReadResponse {
-  bytes value = 1;
-  int64 timestamp = 2;
+  repeated ValueWithTimestamps values = 1;
+}
+
+message ValueWithTimestamps {
+  int64 timestamp = 1;
+  string value = 2;
 }
 
 message WriteRequest {
