@@ -1,5 +1,11 @@
 package bigtable
 
+import (
+	"sync"
+
+	pb "final/proto/internal-api"
+)
+
 // TODO: Master Server
 // 1. Tablet 生命周期管理及负载均衡：Master Server 负责决定哪些 tablet 分配给哪些服务器（即 Tablet Servers）。
 //	  - 负责管理表的创建、删除和更新操作 （通过调用Metadata API ??), 当新表创建时，Master 负责决定如何分配 tablets
@@ -10,3 +16,16 @@ package bigtable
 // 3. Fault Tolerance:
 //   		- 当 Tablet Server 出现故障时，Master 需要能够快速识别并确保恢复后能恢复数据(?)
 // 	  		- 当 Metadata 出现 crash, 需要能够恢复metadata的内容，通过API
+
+type MasterServer struct {
+	pb.UnimplementedMasterServiceServer
+
+	TabletAssignments map[string][]*pb.TabletAssignment
+	mu                sync.RWMutex
+}
+
+func NewMasterServer() *MasterServer {
+	return &MasterServer{
+		TabletAssignments: make(map[string][]*pb.TabletAssignment),
+	}
+}
