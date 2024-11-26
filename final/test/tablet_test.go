@@ -59,7 +59,7 @@ func TestTabletSingleWriteAndRead(t *testing.T) {
 		RowKey:          "row1",
 		ColumnFamily:    "cf1",
 		ColumnQualifier: "col1",
-		MaxVersion:      1,
+		ReturnVersion:   1,
 	}
 
 	readResponse, readErr := server.Read(ctx, readRequest)
@@ -88,7 +88,7 @@ func TestTabletMultipleRead(t *testing.T) {
 		RowKey:          "row1",
 		ColumnFamily:    "cf1",
 		ColumnQualifier: "col1",
-		MaxVersion:      10,
+		ReturnVersion:   1,
 	}
 
 	readResponse, readErr := server.Read(ctx, readRequest)

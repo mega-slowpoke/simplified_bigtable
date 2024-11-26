@@ -19,7 +19,7 @@ message ReadRequest {
   string row_key = 2;
   string column_family = 3;
   string column_qualifier = 4;
-  int64 max_version = 5;
+  int64 return_version = 5;   // how many version does the need to read (at most MAXVERSION)
 }
 
 message ReadResponse {

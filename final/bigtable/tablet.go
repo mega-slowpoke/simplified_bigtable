@@ -7,6 +7,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -16,6 +17,12 @@ type TabletServiceServer struct {
 	proto.UnimplementedTabletServiceServer
 }
 
+type ValueWithKeyAndTimestamps struct {
+	Timestamp int64
+	Value     string
+	Key       string
+}
+
 func NewTabletService() *TabletServiceServer {
 	return &TabletServiceServer{}
 }
@@ -23,40 +30,65 @@ func NewTabletService() *TabletServiceServer {
 func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) (*proto.ReadResponse, error) {
 	prefix := fmt.Sprintf("%s:%s:%s:", req.RowKey, req.ColumnFamily, req.ColumnQualifier)
 	tableFile, err := leveldb.OpenFile(req.TableName, nil)
-
-	defer func(tableFile *leveldb.DB) {
-		closeErr := tableFile.Close()
-		if err != nil {
-			log.Fatalf(closeErr.Error())
-		}
-	}(tableFile)
+	if err != nil {
+		return nil, err
+	}
+	defer tableFile.Close()
 
 	iter := tableFile.NewIterator(util.BytesPrefix([]byte(prefix)), nil)
 	defer iter.Release()
 
-	values := make([]*proto.ValueWithTimestamps, 0)
-	var count int64 = 0
+	var allValues []ValueWithKeyAndTimestamps
 
+	// collect all versions
 	for iter.Next() {
-		if count >= req.MaxVersion {
+		key := string(iter.Key())
+		value := string(iter.Value())
+
+		timestamp, err := extractTimestampFromKey(key)
+		if err != nil {
+			continue
+		}
+
+		allValues = append(allValues, ValueWithKeyAndTimestamps{
+			Timestamp: timestamp,
+			Value:     value,
+			Key:       key, // store key for later delete
+		})
+	}
+
+	// sort array
+	sort.Slice(allValues, func(i, j int) bool {
+		return allValues[i].Timestamp > allValues[j].Timestamp
+	})
+
+	// TODO: make it configurable
+	maxVersion := 3
+	if len(allValues) > maxVersion {
+		// delete the old versions
+		for i := maxVersion; i < len(allValues); i++ {
+			deleteErr := tableFile.Delete([]byte(allValues[i].Key), nil)
+			if deleteErr != nil {
+				log.Printf("Failed to delete old version: %v\n", err)
+			}
+		}
+
+		allValues = allValues[:maxVersion]
+	}
+
+	var returnValues []*proto.ValueWithTimestamps
+	for i := 0; i < len(allValues); i++ {
+		if i == int(req.ReturnVersion) {
 			break
 		}
 
-		key := string(iter.Key())
-		value := string(iter.Value())
-		timestamp, err := extractTimestampFromKey(key)
-		if err != nil {
-			return nil, err
-		}
-
-		values = append(values, &proto.ValueWithTimestamps{
-			Timestamp: timestamp,
-			Value:     value,
+		returnValues = append(returnValues, &proto.ValueWithTimestamps{
+			Timestamp: allValues[i].Timestamp,
+			Value:     allValues[i].Value,
 		})
-		count++
 	}
 
-	return &proto.ReadResponse{Values: values}, nil
+	return &proto.ReadResponse{Values: returnValues}, nil
 }
 
 func (s *TabletServiceServer) Write(ctx context.Context, req *proto.WriteRequest) (*proto.WriteResponse, error) {
@@ -141,6 +173,6 @@ func extractTimestampFromKey(key string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse timestamp: %v", err) // Return an error if parsing fails
 	}
-
-	return reversedTimestamp, nil
+	timestamp := ^reversedTimestamp
+	return timestamp, nil
 }
