@@ -1,9 +1,8 @@
 package bigtable
 
 import (
-	"sync"
-
 	pb "final/proto/internal-api"
+	"sync"
 )
 
 // TODO: Master Server
@@ -19,7 +18,6 @@ import (
 
 type MasterServer struct {
 	pb.UnimplementedMasterServiceServer
-
 	TabletAssignments map[string][]*pb.TabletAssignment
 	mu                sync.RWMutex
 }
