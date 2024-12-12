@@ -4,6 +4,7 @@ import (
 	"context"
 	"final/bigtable/tablet"
 	proto "final/proto/external-api"
+	"github.com/syndtr/goleveldb/leveldb"
 	"testing"
 	"time"
 )
@@ -32,25 +33,48 @@ import (
 //	}
 
 const (
-	TABLET_ADDRESS = "localhost:10000"
+	TABLET_ADDRESS  = "localhost:9001"
+	MASTER_ADDRESS  = "localhost:10000"
+	TEST_TABLE_NAME = "testdb"
 )
 
 func TestCreateTable(t *testing.T) {
+	var db leveldb.DB
+	server := tablet.TabletServiceServer{
+		TabletAddress: TABLET_ADDRESS,
+		MasterAddress: MASTER_ADDRESS,
+		Tables: map[string]*leveldb.DB{
+			TEST_TABLE_NAME: &db,
+		},
+	}
+
+	server.CreateTable(context.Background(), &proto.CreateTableRequest{
+		TableName: TEST_TABLE_NAME,
+	})
 
 }
 
 func TestTabletSingleWriteAndRead(t *testing.T) {
-	server := tablet.NewTabletService(TABLET_ADDRESS)
+	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
+
+	server := tablet.TabletServiceServer{
+		TabletAddress: TABLET_ADDRESS,
+		MasterAddress: MASTER_ADDRESS,
+		Tables: map[string]*leveldb.DB{
+			TEST_TABLE_NAME: db,
+		},
+	}
+
+	ctx := context.Background()
 	timeNow := time.Now().UnixNano()
 	writeRequest := &proto.WriteRequest{
-		TableName:       "testdb",
+		TableName:       TEST_TABLE_NAME,
 		RowKey:          "row1",
 		ColumnFamily:    "cf1",
 		ColumnQualifier: "col1",
 		Value:           []byte("write1"),
 		Timestamp:       timeNow,
 	}
-	ctx := context.Background()
 	_, writeErr := server.Write(ctx, writeRequest)
 	if writeErr != nil {
 		return
@@ -61,7 +85,7 @@ func TestTabletSingleWriteAndRead(t *testing.T) {
 	}
 
 	readRequest := &proto.ReadRequest{
-		TableName:       "testdb",
+		TableName:       TEST_TABLE_NAME,
 		RowKey:          "row1",
 		ColumnFamily:    "cf1",
 		ColumnQualifier: "col1",
@@ -77,6 +101,7 @@ func TestTabletSingleWriteAndRead(t *testing.T) {
 		t.Fatalf("Read returned wrong number of values, expected %d, got %d", 1, len(readResponse.Values))
 	}
 
+	t.Logf("%v", readResponse.Values)
 	expected := "write1"
 	actual := readResponse.Values[0].Value
 	if actual != expected {
@@ -86,11 +111,19 @@ func TestTabletSingleWriteAndRead(t *testing.T) {
 }
 
 func TestTabletMultipleRead(t *testing.T) {
-	server := tablet.NewTabletService(TABLET_ADDRESS)
+	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
+
+	server := tablet.TabletServiceServer{
+		TabletAddress: TABLET_ADDRESS,
+		MasterAddress: MASTER_ADDRESS,
+		Tables: map[string]*leveldb.DB{
+			TEST_TABLE_NAME: db,
+		},
+	}
 	ctx := context.Background()
 
 	readRequest := &proto.ReadRequest{
-		TableName:       "testdb",
+		TableName:       TEST_TABLE_NAME,
 		RowKey:          "row1",
 		ColumnFamily:    "cf1",
 		ColumnQualifier: "col1",

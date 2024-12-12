@@ -14,7 +14,7 @@ import (
 // TabletService for gRPC
 type TabletServiceServer struct {
 	epb.UnimplementedTabletServiceServer
-	tables        map[string]*leveldb.DB // tableName -> levelDB
+	Tables        map[string]*leveldb.DB // tableName -> levelDB
 	TabletAddress string
 	MasterAddress string
 	MasterConn    *grpc.ClientConn
@@ -29,7 +29,7 @@ func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
 	masterClient := ipb.NewMasterServiceClient(conn)
 
 	return &TabletServiceServer{
-		tables:        make(map[string]*leveldb.DB),
+		Tables:        make(map[string]*leveldb.DB),
 		TabletAddress: opt.TabletAddress,
 		MasterAddress: opt.MasterAddress, // "localhost:12345"
 		MasterConn:    conn,

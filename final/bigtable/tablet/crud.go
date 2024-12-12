@@ -9,12 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
-	"path/filepath"
 	"sort"
-)
-
-const (
-	dbPath = "mockGFS" // use local storage to mimic GFS
 )
 
 type ValueWithKeyAndTimestamps struct {
@@ -25,14 +20,14 @@ type ValueWithKeyAndTimestamps struct {
 
 func (s *TabletServiceServer) CreateTable(ctx context.Context, req *proto.CreateTableRequest) (*proto.CreateTableResponse, error) {
 	tableName := req.TableName
-	db, err := leveldb.OpenFile(filepath.Join(dbPath, tableName), nil)
+	db, err := leveldb.OpenFile(tableName, nil)
 	if err != nil {
 		return &proto.CreateTableResponse{
 			Success:      false,
 			ErrorMessage: fmt.Sprintf("Failed to create table: %v", err),
 		}, nil
 	}
-	s.tables[tableName] = db
+	s.Tables[tableName] = db
 	return &proto.CreateTableResponse{
 		Success:      true,
 		ErrorMessage: "",
@@ -48,7 +43,7 @@ func (s *TabletServiceServer) CreateTable(ctx context.Context, req *proto.Create
 func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) (*proto.ReadResponse, error) {
 	prefix := fmt.Sprintf("%s:%s:%s:", req.RowKey, req.ColumnFamily, req.ColumnQualifier)
 	tableName := req.TableName
-	tableFile, ok := s.tables[tableName]
+	tableFile, ok := s.Tables[tableName]
 	if !ok {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
 	}
@@ -114,7 +109,7 @@ func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) 
 func (s *TabletServiceServer) Write(ctx context.Context, req *proto.WriteRequest) (*proto.WriteResponse, error) {
 	key := BuildKey(req.RowKey, req.ColumnFamily, req.ColumnQualifier, req.Timestamp)
 	tableName := req.TableName
-	tableFile, ok := s.tables[tableName]
+	tableFile, ok := s.Tables[tableName]
 	if !ok {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
 	}
@@ -134,7 +129,7 @@ func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteReque
 
 	// check if table exists
 	tableName := req.TableName
-	tableFile, ok := s.tables[tableName]
+	tableFile, ok := s.Tables[tableName]
 	if !ok {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
 	}
