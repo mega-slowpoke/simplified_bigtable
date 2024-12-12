@@ -451,3 +451,33 @@
 17:31:39.500273 db@open done T·6.7005ms
 17:31:39.500795 db@close closing
 17:31:39.500795 db@close done T·0s
+=============== Dec 12, 2024 (EST) ===============
+17:37:36.182832 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+17:37:36.189124 version@stat F·[3 2] S·765B[457B 308B] Sc·[0.75 0.00]
+17:37:36.189124 db@open opening
+17:37:36.189124 journal@recovery F·1
+17:37:36.189713 journal@recovery recovering @85
+17:37:36.190219 version@stat F·[3 2] S·765B[457B 308B] Sc·[0.75 0.00]
+17:37:36.196553 db@janitor F·7 G·0
+17:37:36.196553 db@open done T·7.4291ms
+17:37:36.197082 db@close closing
+17:37:36.197082 db@close done T·0s
+=============== Dec 12, 2024 (EST) ===============
+17:37:42.878677 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+17:37:42.885022 version@stat F·[3 2] S·765B[457B 308B] Sc·[0.75 0.00]
+17:37:42.885022 db@open opening
+17:37:42.885022 journal@recovery F·1
+17:37:42.885563 journal@recovery recovering @87
+17:37:42.888755 memdb@flush created L0@89 N·3 S·200B "row..601,d27":"row..901,d29"
+17:37:42.888755 version@stat F·[4 2] S·965B[657B 308B] Sc·[1.00 0.00]
+17:37:42.895718 db@janitor F·8 G·0
+17:37:42.895718 db@open done T·10.6954ms
+17:37:42.895718 table@compaction L0·2 -> L1·2 S·662B Q·30
+17:37:42.899447 db@close closing
+17:37:42.899447 version@stat F·[2] S·303B[303B] Sc·[0.50]
+17:37:42.901013 table@commit exiting
+17:37:42.901013 table@remove removed @89
+17:37:42.901013 table@remove removed @50
+17:37:42.901013 table@remove removed @59
+17:37:42.901013 table@remove removed @75
+17:37:42.901013 db@close done T·1.5657ms

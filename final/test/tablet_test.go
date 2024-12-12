@@ -141,5 +141,47 @@ func TestTabletMultipleRead(t *testing.T) {
 }
 
 func TestTabletDelete(t *testing.T) {
+	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
 
+	server := tablet.TabletServiceServer{
+		TabletAddress: TABLET_ADDRESS,
+		MasterAddress: MASTER_ADDRESS,
+		Tables: map[string]*leveldb.DB{
+			TEST_TABLE_NAME: db,
+		},
+	}
+	ctx := context.Background()
+
+	deleteReq := &proto.DeleteRequest{
+		TableName:       TEST_TABLE_NAME,
+		RowKey:          "row1",
+		ColumnFamily:    "cf1",
+		ColumnQualifier: "col1",
+	}
+
+	deleteResponse, deleteErr := server.Delete(ctx, deleteReq)
+	if deleteErr != nil {
+		t.Fatalf("Failed to delete from LevelDB: %v", deleteErr)
+	}
+
+	if deleteResponse.Success != true {
+		t.Fatalf("Expected success to be true, but got %v", deleteResponse.Success)
+	}
+
+	readRequest := &proto.ReadRequest{
+		TableName:       TEST_TABLE_NAME,
+		RowKey:          "row1",
+		ColumnFamily:    "cf1",
+		ColumnQualifier: "col1",
+		ReturnVersion:   5,
+	}
+
+	readResponse, readErr := server.Read(ctx, readRequest)
+	if readErr != nil {
+		t.Fatalf("Failed to read from LevelDB: %v", readErr)
+	}
+
+	if len(readResponse.Values) != 0 {
+		t.Fatalf("Deleted but still read value %v", readResponse.Values)
+	}
 }
