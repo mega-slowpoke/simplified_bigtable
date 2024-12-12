@@ -7,10 +7,20 @@ option go_package = "final/proto";
 
 // Service for client interactions with user tablet servers
 service TabletService {
+  rpc CreateTable(CreateTableRequest) returns (CreateTableResponse);
   rpc Read (ReadRequest) returns (ReadResponse);
   rpc Write (WriteRequest) returns (WriteResponse);
   rpc Delete (DeleteRequest) returns (DeleteResponse);
-  rpc Scan (ScanRequest) returns (stream ScanResponse);
+  rpc Scan (ScanRequest) returns (ScanResponse);
+}
+
+message CreateTableRequest {
+  string table_name = 1;
+}
+
+message CreateTableResponse {
+  bool success = 1;
+  string error_message = 2;
 }
 
 // Messages for data operations

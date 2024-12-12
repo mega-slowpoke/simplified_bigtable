@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MasterService_AssignTablet_FullMethodName         = "/bigtable.MasterService/AssignTablet"
-	MasterService_UnassignTablet_FullMethodName       = "/bigtable.MasterService/UnassignTablet"
+	MasterService_RegisterTablet_FullMethodName       = "/bigtable.MasterService/RegisterTablet"
+	MasterService_UnregisterTablet_FullMethodName     = "/bigtable.MasterService/UnregisterTablet"
 	MasterService_GetTabletAssignments_FullMethodName = "/bigtable.MasterService/GetTabletAssignments"
 	MasterService_ReportTabletStatus_FullMethodName   = "/bigtable.MasterService/ReportTabletStatus"
 )
@@ -29,8 +29,8 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MasterServiceClient interface {
-	AssignTablet(ctx context.Context, in *AssignTabletRequest, opts ...grpc.CallOption) (*AssignTabletResponse, error)
-	UnassignTablet(ctx context.Context, in *UnassignTabletRequest, opts ...grpc.CallOption) (*UnassignTabletResponse, error)
+	RegisterTablet(ctx context.Context, in *RegisterTabletRequest, opts ...grpc.CallOption) (*RegisterTabletResponse, error)
+	UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletRequest, error)
 	GetTabletAssignments(ctx context.Context, in *GetTabletAssignmentsRequest, opts ...grpc.CallOption) (*GetTabletAssignmentsResponse, error)
 	ReportTabletStatus(ctx context.Context, in *ReportTabletStatusRequest, opts ...grpc.CallOption) (*ReportTabletStatusResponse, error)
 }
@@ -43,20 +43,20 @@ func NewMasterServiceClient(cc grpc.ClientConnInterface) MasterServiceClient {
 	return &masterServiceClient{cc}
 }
 
-func (c *masterServiceClient) AssignTablet(ctx context.Context, in *AssignTabletRequest, opts ...grpc.CallOption) (*AssignTabletResponse, error) {
+func (c *masterServiceClient) RegisterTablet(ctx context.Context, in *RegisterTabletRequest, opts ...grpc.CallOption) (*RegisterTabletResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AssignTabletResponse)
-	err := c.cc.Invoke(ctx, MasterService_AssignTablet_FullMethodName, in, out, cOpts...)
+	out := new(RegisterTabletResponse)
+	err := c.cc.Invoke(ctx, MasterService_RegisterTablet_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *masterServiceClient) UnassignTablet(ctx context.Context, in *UnassignTabletRequest, opts ...grpc.CallOption) (*UnassignTabletResponse, error) {
+func (c *masterServiceClient) UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletRequest, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UnassignTabletResponse)
-	err := c.cc.Invoke(ctx, MasterService_UnassignTablet_FullMethodName, in, out, cOpts...)
+	out := new(UnregisterTabletRequest)
+	err := c.cc.Invoke(ctx, MasterService_UnregisterTablet_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -87,8 +87,8 @@ func (c *masterServiceClient) ReportTabletStatus(ctx context.Context, in *Report
 // All implementations must embed UnimplementedMasterServiceServer
 // for forward compatibility.
 type MasterServiceServer interface {
-	AssignTablet(context.Context, *AssignTabletRequest) (*AssignTabletResponse, error)
-	UnassignTablet(context.Context, *UnassignTabletRequest) (*UnassignTabletResponse, error)
+	RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error)
+	UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error)
 	GetTabletAssignments(context.Context, *GetTabletAssignmentsRequest) (*GetTabletAssignmentsResponse, error)
 	ReportTabletStatus(context.Context, *ReportTabletStatusRequest) (*ReportTabletStatusResponse, error)
 	mustEmbedUnimplementedMasterServiceServer()
@@ -101,11 +101,11 @@ type MasterServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMasterServiceServer struct{}
 
-func (UnimplementedMasterServiceServer) AssignTablet(context.Context, *AssignTabletRequest) (*AssignTabletResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AssignTablet not implemented")
+func (UnimplementedMasterServiceServer) RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterTablet not implemented")
 }
-func (UnimplementedMasterServiceServer) UnassignTablet(context.Context, *UnassignTabletRequest) (*UnassignTabletResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UnassignTablet not implemented")
+func (UnimplementedMasterServiceServer) UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnregisterTablet not implemented")
 }
 func (UnimplementedMasterServiceServer) GetTabletAssignments(context.Context, *GetTabletAssignmentsRequest) (*GetTabletAssignmentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTabletAssignments not implemented")
@@ -134,38 +134,38 @@ func RegisterMasterServiceServer(s grpc.ServiceRegistrar, srv MasterServiceServe
 	s.RegisterService(&MasterService_ServiceDesc, srv)
 }
 
-func _MasterService_AssignTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AssignTabletRequest)
+func _MasterService_RegisterTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterTabletRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MasterServiceServer).AssignTablet(ctx, in)
+		return srv.(MasterServiceServer).RegisterTablet(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MasterService_AssignTablet_FullMethodName,
+		FullMethod: MasterService_RegisterTablet_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterServiceServer).AssignTablet(ctx, req.(*AssignTabletRequest))
+		return srv.(MasterServiceServer).RegisterTablet(ctx, req.(*RegisterTabletRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MasterService_UnassignTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UnassignTabletRequest)
+func _MasterService_UnregisterTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnregisterTabletRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MasterServiceServer).UnassignTablet(ctx, in)
+		return srv.(MasterServiceServer).UnregisterTablet(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MasterService_UnassignTablet_FullMethodName,
+		FullMethod: MasterService_UnregisterTablet_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterServiceServer).UnassignTablet(ctx, req.(*UnassignTabletRequest))
+		return srv.(MasterServiceServer).UnregisterTablet(ctx, req.(*UnregisterTabletRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -214,12 +214,12 @@ var MasterService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*MasterServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "AssignTablet",
-			Handler:    _MasterService_AssignTablet_Handler,
+			MethodName: "RegisterTablet",
+			Handler:    _MasterService_RegisterTablet_Handler,
 		},
 		{
-			MethodName: "UnassignTablet",
-			Handler:    _MasterService_UnassignTablet_Handler,
+			MethodName: "UnregisterTablet",
+			Handler:    _MasterService_UnregisterTablet_Handler,
 		},
 		{
 			MethodName: "GetTabletAssignments",

@@ -2,6 +2,7 @@ package main
 
 import (
 	"final/bigtable"
+	"final/bigtable/tablet"
 	proto "final/proto/external-api"
 	"github.com/syndtr/goleveldb/leveldb"
 	"google.golang.org/grpc"
@@ -27,7 +28,7 @@ func main() {
 	// TODO: setup chubbyLock
 	grpcServer := grpc.NewServer()
 	chubbyLock := bigtable.NewChubbyLock()
-	tabletService := bigtable.NewTabletService(db)
+	tabletService := tablet.NewTabletService(db)
 
 	proto.RegisterTabletServiceServer(grpcServer, tabletService)
 

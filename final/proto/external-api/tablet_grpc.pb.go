@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TabletService_Read_FullMethodName   = "/bigtable.TabletService/Read"
-	TabletService_Write_FullMethodName  = "/bigtable.TabletService/Write"
-	TabletService_Delete_FullMethodName = "/bigtable.TabletService/Delete"
-	TabletService_Scan_FullMethodName   = "/bigtable.TabletService/Scan"
+	TabletService_CreateTable_FullMethodName = "/bigtable.TabletService/CreateTable"
+	TabletService_Read_FullMethodName        = "/bigtable.TabletService/Read"
+	TabletService_Write_FullMethodName       = "/bigtable.TabletService/Write"
+	TabletService_Delete_FullMethodName      = "/bigtable.TabletService/Delete"
+	TabletService_Scan_FullMethodName        = "/bigtable.TabletService/Scan"
 )
 
 // TabletServiceClient is the client API for TabletService service.
@@ -31,10 +32,11 @@ const (
 //
 // Service for client interactions with user tablet servers
 type TabletServiceClient interface {
+	CreateTable(ctx context.Context, in *CreateTableRequest, opts ...grpc.CallOption) (*CreateTableResponse, error)
 	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error)
 	Write(ctx context.Context, in *WriteRequest, opts ...grpc.CallOption) (*WriteResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
-	Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ScanResponse], error)
+	Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResponse, error)
 }
 
 type tabletServiceClient struct {
@@ -43,6 +45,16 @@ type tabletServiceClient struct {
 
 func NewTabletServiceClient(cc grpc.ClientConnInterface) TabletServiceClient {
 	return &tabletServiceClient{cc}
+}
+
+func (c *tabletServiceClient) CreateTable(ctx context.Context, in *CreateTableRequest, opts ...grpc.CallOption) (*CreateTableResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateTableResponse)
+	err := c.cc.Invoke(ctx, TabletService_CreateTable_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *tabletServiceClient) Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error) {
@@ -75,24 +87,15 @@ func (c *tabletServiceClient) Delete(ctx context.Context, in *DeleteRequest, opt
 	return out, nil
 }
 
-func (c *tabletServiceClient) Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ScanResponse], error) {
+func (c *tabletServiceClient) Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &TabletService_ServiceDesc.Streams[0], TabletService_Scan_FullMethodName, cOpts...)
+	out := new(ScanResponse)
+	err := c.cc.Invoke(ctx, TabletService_Scan_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[ScanRequest, ScanResponse]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
+	return out, nil
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TabletService_ScanClient = grpc.ServerStreamingClient[ScanResponse]
 
 // TabletServiceServer is the server API for TabletService service.
 // All implementations must embed UnimplementedTabletServiceServer
@@ -100,10 +103,11 @@ type TabletService_ScanClient = grpc.ServerStreamingClient[ScanResponse]
 //
 // Service for client interactions with user tablet servers
 type TabletServiceServer interface {
+	CreateTable(context.Context, *CreateTableRequest) (*CreateTableResponse, error)
 	Read(context.Context, *ReadRequest) (*ReadResponse, error)
 	Write(context.Context, *WriteRequest) (*WriteResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
-	Scan(*ScanRequest, grpc.ServerStreamingServer[ScanResponse]) error
+	Scan(context.Context, *ScanRequest) (*ScanResponse, error)
 	mustEmbedUnimplementedTabletServiceServer()
 }
 
@@ -114,6 +118,9 @@ type TabletServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedTabletServiceServer struct{}
 
+func (UnimplementedTabletServiceServer) CreateTable(context.Context, *CreateTableRequest) (*CreateTableResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateTable not implemented")
+}
 func (UnimplementedTabletServiceServer) Read(context.Context, *ReadRequest) (*ReadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Read not implemented")
 }
@@ -123,8 +130,8 @@ func (UnimplementedTabletServiceServer) Write(context.Context, *WriteRequest) (*
 func (UnimplementedTabletServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
-func (UnimplementedTabletServiceServer) Scan(*ScanRequest, grpc.ServerStreamingServer[ScanResponse]) error {
-	return status.Errorf(codes.Unimplemented, "method Scan not implemented")
+func (UnimplementedTabletServiceServer) Scan(context.Context, *ScanRequest) (*ScanResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Scan not implemented")
 }
 func (UnimplementedTabletServiceServer) mustEmbedUnimplementedTabletServiceServer() {}
 func (UnimplementedTabletServiceServer) testEmbeddedByValue()                       {}
@@ -145,6 +152,24 @@ func RegisterTabletServiceServer(s grpc.ServiceRegistrar, srv TabletServiceServe
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&TabletService_ServiceDesc, srv)
+}
+
+func _TabletService_CreateTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateTableRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TabletServiceServer).CreateTable(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TabletService_CreateTable_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletServiceServer).CreateTable(ctx, req.(*CreateTableRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _TabletService_Read_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -201,16 +226,23 @@ func _TabletService_Delete_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TabletService_Scan_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ScanRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _TabletService_Scan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ScanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(TabletServiceServer).Scan(m, &grpc.GenericServerStream[ScanRequest, ScanResponse]{ServerStream: stream})
+	if interceptor == nil {
+		return srv.(TabletServiceServer).Scan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TabletService_Scan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletServiceServer).Scan(ctx, req.(*ScanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TabletService_ScanServer = grpc.ServerStreamingServer[ScanResponse]
 
 // TabletService_ServiceDesc is the grpc.ServiceDesc for TabletService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -219,6 +251,10 @@ var TabletService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "bigtable.TabletService",
 	HandlerType: (*TabletServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateTable",
+			Handler:    _TabletService_CreateTable_Handler,
+		},
 		{
 			MethodName: "Read",
 			Handler:    _TabletService_Read_Handler,
@@ -231,13 +267,11 @@ var TabletService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Delete",
 			Handler:    _TabletService_Delete_Handler,
 		},
-	},
-	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "Scan",
-			Handler:       _TabletService_Scan_Handler,
-			ServerStreams: true,
+			MethodName: "Scan",
+			Handler:    _TabletService_Scan_Handler,
 		},
 	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "tablet.proto",
 }

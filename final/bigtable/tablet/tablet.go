@@ -1,4 +1,4 @@
-package bigtable
+package tablet
 
 import (
 	"context"
@@ -7,14 +7,19 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"log"
+	"path/filepath"
 	"sort"
-	"strconv"
-	"strings"
+)
+
+const (
+	dbPath = "mockGFS" // use local storage to mimic GFS
 )
 
 // TabletService for gRPC
 type TabletServiceServer struct {
 	proto.UnimplementedTabletServiceServer
+	tables  map[string]*leveldb.DB // tableName -> levelDB
+	Address string
 }
 
 type ValueWithKeyAndTimestamps struct {
@@ -23,10 +28,35 @@ type ValueWithKeyAndTimestamps struct {
 	Key       string
 }
 
-func NewTabletService() *TabletServiceServer {
-	return &TabletServiceServer{}
+func NewTabletService(address string) *TabletServiceServer {
+	return &TabletServiceServer{
+		tables:  make(map[string]*leveldb.DB),
+		Address: address,
+	}
 }
 
+func (s *TabletServiceServer) CreateTable(ctx context.Context, req *proto.CreateTableRequest) (*proto.CreateTableResponse, error) {
+	tableName := req.TableName
+	db, err := leveldb.OpenFile(filepath.Join(dbPath, tableName), nil)
+	if err != nil {
+		return &proto.CreateTableResponse{
+			Success:      false,
+			ErrorMessage: fmt.Sprintf("Failed to create table: %v", err),
+		}, nil
+	}
+	s.tables[tableName] = db
+	return &proto.CreateTableResponse{
+		Success:      true,
+		ErrorMessage: "",
+	}, nil
+}
+
+// Paper Section2 -> timestamp subsection
+// Each cell in a Bigtable can contain multiple versions of
+// the same data; these versions are indexed by timestamp.  Different
+// versions of a cell are stored in decreasing timestamp order, so that the
+// most recent versions can be read first. In our implementation, only the most
+// recent 3 version will be kept, older version will be deleted
 func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) (*proto.ReadResponse, error) {
 	prefix := fmt.Sprintf("%s:%s:%s:", req.RowKey, req.ColumnFamily, req.ColumnQualifier)
 	tableFile, err := leveldb.OpenFile(req.TableName, nil)
@@ -45,7 +75,7 @@ func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) 
 		key := string(iter.Key())
 		value := string(iter.Value())
 
-		timestamp, err := extractTimestampFromKey(key)
+		timestamp, err := ExtractTimestampFromKey(key)
 		if err != nil {
 			continue
 		}
@@ -92,7 +122,7 @@ func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) 
 }
 
 func (s *TabletServiceServer) Write(ctx context.Context, req *proto.WriteRequest) (*proto.WriteResponse, error) {
-	key := buildKey(req.RowKey, req.ColumnFamily, req.ColumnQualifier, req.Timestamp)
+	key := BuildKey(req.RowKey, req.ColumnFamily, req.ColumnQualifier, req.Timestamp)
 	tableFile, err := leveldb.OpenFile(req.TableName, nil)
 
 	defer func(tableFile *leveldb.DB) {
@@ -123,56 +153,58 @@ func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteReque
 }
 
 // Scan
-func (s *TabletServiceServer) Scan(req *proto.ScanRequest, stream proto.TabletService_ScanServer) error {
-	// TODO: how to add lock to Scan
+//func (s *TabletServiceServer) Scan(req *proto.ScanRequest, stream proto.TabletService_ScanServer) error {
+// TODO: how to add lock to Scan
 
-	//startKey := buildKey(req.StartRowKey, req.ColumnFamily, req.ColumnQualifier, )
-	//endKey := buildKey(req.EndRowKey, req.ColumnFamily, req.ColumnQualifier)
+//startKey := buildKey(req.StartRowKey, req.ColumnFamily, req.ColumnQualifier, )
+//endKey := buildKey(req.EndRowKey, req.ColumnFamily, req.ColumnQualifier)
 
-	//iter := s.db.NewIterator(nil, nil)
-	//defer iter.Release()
-	//
-	//for iter.Next() {
-	//	key := string(iter.Key())
-	//	if key >= startKey && key <= endKey {
-	//		value := iter.Value()
-	//		timestamp := extractTimestampFromKey(string(value))
-	//		if err := stream.Send(&proto.ScanResponse{
-	//			RowKey:    key,
-	//			Value:     value,
-	//			Timestamp: timestamp,
-	//		}); err != nil {
-	//			log.Printf("Scan send error: %v", err)
-	//			return err
-	//		}
-	//	}
-	//}
-	//
-	//if err := iter.Error(); err != nil {
-	//	log.Printf("Scan iterator error: %v", err)
-	//	return err
-	//}
+//iter := s.db.NewIterator(nil, nil)
+//defer iter.Release()
+//
+//for iter.Next() {
+//	key := string(iter.Key())
+//	if key >= startKey && key <= endKey {
+//		value := iter.Value()
+//		timestamp := extractTimestampFromKey(string(value))
+//		if err := stream.Send(&proto.ScanResponse{
+//			RowKey:    key,
+//			Value:     value,
+//			Timestamp: timestamp,
+//		}); err != nil {
+//			log.Printf("Scan send error: %v", err)
+//			return err
+//		}
+//	}
+//}
+//
+//if err := iter.Error(); err != nil {
+//	log.Printf("Scan iterator error: %v", err)
+//	return err
+//}
 
-	return nil
-}
+//	return nil
+//}
 
-func buildKey(rowKey, columnFamily, columnQualifier string, timestamp int64) string {
-	reversedTimestamp := ^timestamp // descendingOrder timestamp so we can retrieve the most recent data first
-	return fmt.Sprintf("%s:%s:%s:%d", rowKey, columnFamily, columnQualifier, reversedTimestamp)
-}
-
-func extractTimestampFromKey(key string) (int64, error) {
-	parts := strings.Split(key, ":")
-	if len(parts) < 4 {
-		return 0, fmt.Errorf("invalid key format") // Return an error if the key is in an invalid format
-	}
-
-	// Extract the reversed timestamp (the 4th part)
-	reversedTimestampStr := parts[3]
-	reversedTimestamp, err := strconv.ParseInt(reversedTimestampStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse timestamp: %v", err) // Return an error if parsing fails
-	}
-	timestamp := ^reversedTimestamp
-	return timestamp, nil
-}
+//func (s *TabletServiceServer) DeleteTable(ctx context.Context, req *proto.DeleteTableRequest) (*pb.Response, error) {
+//	tableName := req.TableName
+//	db, ok := s.dbs[tableName]
+//	if !ok {
+//		return &pb.Response{
+//			Success: false,
+//			Message: "Table not found",
+//		}, nil
+//	}
+//	err := db.Close()
+//	if err != nil {
+//		return &pb.Response{
+//			Success: false,
+//			Message: fmt.Sprintf("Failed to close table: %v", err),
+//		}, nil
+//	}
+//	delete(s.dbs, tableName)
+//	return &pb.Response{
+//		Success: true,
+//		Message: "Table deleted successfully",
+//	}, nil
+//}

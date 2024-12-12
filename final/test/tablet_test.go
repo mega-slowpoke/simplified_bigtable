@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"final/bigtable"
 	proto "final/proto/external-api"
 	"github.com/syndtr/goleveldb/leveldb"
 	"testing"
@@ -34,7 +33,7 @@ var db *leveldb.DB
 //}
 
 func TestTabletSingleWriteAndRead(t *testing.T) {
-	server := bigtable.NewTabletService()
+	server := tablet.NewTabletService()
 	timeNow := time.Now().UnixNano()
 	writeRequest := &proto.WriteRequest{
 		TableName:       "testdb",
@@ -80,7 +79,7 @@ func TestTabletSingleWriteAndRead(t *testing.T) {
 }
 
 func TestTabletMultipleRead(t *testing.T) {
-	server := bigtable.NewTabletService()
+	server := tablet.NewTabletService()
 	ctx := context.Background()
 
 	readRequest := &proto.ReadRequest{
@@ -88,7 +87,7 @@ func TestTabletMultipleRead(t *testing.T) {
 		RowKey:          "row1",
 		ColumnFamily:    "cf1",
 		ColumnQualifier: "col1",
-		ReturnVersion:   1,
+		ReturnVersion:   5,
 	}
 
 	readResponse, readErr := server.Read(ctx, readRequest)
