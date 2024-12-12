@@ -1,4 +1,4 @@
-package test
+package tablet_test
 
 import (
 	"context"
@@ -54,6 +54,74 @@ func TestCreateTable(t *testing.T) {
 
 }
 
+func TestTabletSingleWrite(t *testing.T) {
+	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
+
+	server := tablet.TabletServiceServer{
+		TabletAddress: TABLET_ADDRESS,
+		MasterAddress: MASTER_ADDRESS,
+		Tables: map[string]*leveldb.DB{
+			TEST_TABLE_NAME: db,
+		},
+	}
+
+	ctx := context.Background()
+	timeNow := time.Now().UnixNano()
+	writeRequest := &proto.WriteRequest{
+		TableName:       TEST_TABLE_NAME,
+		RowKey:          "row1",
+		ColumnFamily:    "cf1",
+		ColumnQualifier: "col1",
+		Value:           []byte("write1"),
+		Timestamp:       timeNow,
+	}
+	_, writeErr := server.Write(ctx, writeRequest)
+	if writeErr != nil {
+		return
+	}
+
+	if writeErr != nil {
+		t.Fatalf("Failed to write to LevelDB: %v", writeErr)
+	}
+}
+
+func TestTabletSingleRead(t *testing.T) {
+	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
+
+	server := tablet.TabletServiceServer{
+		TabletAddress: TABLET_ADDRESS,
+		MasterAddress: MASTER_ADDRESS,
+		Tables: map[string]*leveldb.DB{
+			TEST_TABLE_NAME: db,
+		},
+	}
+
+	readRequest := &proto.ReadRequest{
+		TableName:       TEST_TABLE_NAME,
+		RowKey:          "row1",
+		ColumnFamily:    "cf1",
+		ColumnQualifier: "col1",
+		ReturnVersion:   1,
+	}
+
+	readResponse, readErr := server.Read(context.Background(), readRequest)
+	if readErr != nil {
+		t.Fatalf("Failed to read from LevelDB: %v", readErr)
+	}
+
+	if len(readResponse.Values) != 1 {
+		t.Fatalf("Read returned wrong number of values, expected %d, got %d", 1, len(readResponse.Values))
+	}
+
+	t.Logf("%v", readResponse.Values)
+	expected := "write1"
+	actual := readResponse.Values[0].Value
+	if actual != expected {
+		t.Fatalf("Expected value %s, but got %s", expected, actual)
+	}
+}
+
+// TODO: SingleWriteAndRead might lead to problem
 func TestTabletSingleWriteAndRead(t *testing.T) {
 	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
 
@@ -92,7 +160,7 @@ func TestTabletSingleWriteAndRead(t *testing.T) {
 		ReturnVersion:   1,
 	}
 
-	readResponse, readErr := server.Read(ctx, readRequest)
+	readResponse, readErr := server.Read(context.Background(), readRequest)
 	if readErr != nil {
 		t.Fatalf("Failed to read from LevelDB: %v", readErr)
 	}
@@ -107,7 +175,6 @@ func TestTabletSingleWriteAndRead(t *testing.T) {
 	if actual != expected {
 		t.Fatalf("Expected value %s, but got %s", expected, actual)
 	}
-
 }
 
 func TestTabletMultipleRead(t *testing.T) {
@@ -135,9 +202,7 @@ func TestTabletMultipleRead(t *testing.T) {
 		t.Fatalf("Failed to read from LevelDB: %v", readErr)
 	}
 
-	for i, r := range readResponse.Values {
-		t.Logf("%d element: %v", i, r)
-	}
+	t.Logf("element: %v", readResponse.Values)
 }
 
 func TestTabletDelete(t *testing.T) {

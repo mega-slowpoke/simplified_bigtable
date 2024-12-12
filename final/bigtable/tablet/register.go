@@ -1,14 +1,32 @@
 package tablet
 
-//
-//func (s *TabletServiceServer) RegisterMyself(conn *grpc.ClientConn) (*pb.RegisterTabletResponse, error) {
-//	request := &pb.RegisterTabletRequest{
-//		TabletAddress: s.TabletAddress,
-//	}
-//
-//	response, err := conn.RegisterTablet(context.Background(), request)
-//	if err != nil {
-//		log.Fatalf("Could not register tablet server: %v", err)
-//	}
-//	log.Printf("Registration response: Status Code: %d, Message: %s", response.StatusCode, response.Message)
-//}
+import (
+	"context"
+	ipb "final/proto/internal-api"
+)
+
+func (s *TabletServiceServer) RegisterMyself() error {
+	request := &ipb.RegisterTabletRequest{
+		TabletAddress: s.TabletAddress,
+	}
+
+	_, err := (*s.MasterClient).RegisterTablet(context.Background(), request)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *TabletServiceServer) UnRegisterMyself() error {
+	request := &ipb.UnregisterTabletRequest{
+		TabletAddress: s.TabletAddress,
+	}
+
+	_, err := (*s.MasterClient).UnregisterTablet(context.Background(), request)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

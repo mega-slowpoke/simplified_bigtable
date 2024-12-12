@@ -192,26 +192,3 @@ func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteReque
 
 //	return nil
 //}
-
-//func (s *TabletServiceServer) DeleteTable(ctx context.Context, req *proto.DeleteTableRequest) (*pb.Response, error) {
-//	tableName := req.TableName
-//	db, ok := s.dbs[tableName]
-//	if !ok {
-//		return &pb.Response{
-//			Success: false,
-//			Message: "Table not found",
-//		}, nil
-//	}
-//	err := db.Close()
-//	if err != nil {
-//		return &pb.Response{
-//			Success: false,
-//			Message: fmt.Sprintf("Failed to close table: %v", err),
-//		}, nil
-//	}
-//	delete(s.dbs, tableName)
-//	return &pb.Response{
-//		Success: true,
-//		Message: "Table deleted successfully",
-//	}, nil
-//}
