@@ -2,38 +2,45 @@ package test
 
 import (
 	"context"
+	"final/bigtable/tablet"
 	proto "final/proto/external-api"
-	"github.com/syndtr/goleveldb/leveldb"
 	"testing"
 	"time"
 )
 
-var db *leveldb.DB
-
 // setup before each test
-//func TestMain(m *testing.M) {
-//	var err error
-//	// Clean up previous database files if any
-//	os.RemoveAll("testdb")
 //
-//	// Open a fresh LevelDB instance
-//	db, err = leveldb.OpenFile("testdb", nil)
-//	if err != nil {
-//		log.Fatalf("Failed to open LevelDB: %v", err)
+//	func TestMain(m *testing.M) {
+//		var err error
+//		// Clean up previous database files if any
+//		os.RemoveAll("testdb")
+//
+//		// Open a fresh LevelDB instance
+//		db, err = leveldb.OpenFile("testdb", nil)
+//		if err != nil {
+//			log.Fatalf("Failed to open LevelDB: %v", err)
+//		}
+//		// Ensure the database is properly closed after the tests
+//		defer db.Close()
+//
+//		// Run the tests
+//		code := m.Run()
+//
+//		// Clean up the database directory after the tests
+//		os.RemoveAll("testdb")
+//		os.Exit(code)
 //	}
-//	// Ensure the database is properly closed after the tests
-//	defer db.Close()
-//
-//	// Run the tests
-//	code := m.Run()
-//
-//	// Clean up the database directory after the tests
-//	os.RemoveAll("testdb")
-//	os.Exit(code)
-//}
+
+const (
+	TABLET_ADDRESS = "localhost:10000"
+)
+
+func TestCreateTable(t *testing.T) {
+
+}
 
 func TestTabletSingleWriteAndRead(t *testing.T) {
-	server := tablet.NewTabletService()
+	server := tablet.NewTabletService(TABLET_ADDRESS)
 	timeNow := time.Now().UnixNano()
 	writeRequest := &proto.WriteRequest{
 		TableName:       "testdb",
@@ -79,7 +86,7 @@ func TestTabletSingleWriteAndRead(t *testing.T) {
 }
 
 func TestTabletMultipleRead(t *testing.T) {
-	server := tablet.NewTabletService()
+	server := tablet.NewTabletService(TABLET_ADDRESS)
 	ctx := context.Background()
 
 	readRequest := &proto.ReadRequest{
@@ -98,4 +105,8 @@ func TestTabletMultipleRead(t *testing.T) {
 	for i, r := range readResponse.Values {
 		t.Logf("%d element: %v", i, r)
 	}
+}
+
+func TestTabletDelete(t *testing.T) {
+
 }

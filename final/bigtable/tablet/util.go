@@ -6,6 +6,13 @@ import (
 	"strings"
 )
 
+type SetupOptions struct {
+	TabletAddress string
+	//TabletPort    string
+	MasterAddress string
+	//MasterPort    string
+}
+
 func BuildKey(rowKey, columnFamily, columnQualifier string, timestamp int64) string {
 	reversedTimestamp := ^timestamp // descendingOrder timestamp so we can retrieve the most recent data first
 	return fmt.Sprintf("%s:%s:%s:%d", rowKey, columnFamily, columnQualifier, reversedTimestamp)

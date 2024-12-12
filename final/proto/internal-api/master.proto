@@ -15,7 +15,7 @@ service MasterService {
 
 // Messages for master-server interactions
 
-// register应该只负责最开始把tablet登记到master里面，不负责传递tablet具体有什么信息
+// register应该只负责最开始把tablet登记到master里面，不负责传递tablet具体有什么信息wo
 message RegisterTabletRequest {
   string table_name = 1;
   string table_start_row = 2;

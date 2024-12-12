@@ -1,7 +1,7 @@
 package bigtable
 
 import (
-	pb "final/proto/external-api"
+	pb "final/proto/internal-api"
 	"sync"
 )
 
