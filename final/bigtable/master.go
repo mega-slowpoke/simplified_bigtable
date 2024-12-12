@@ -1,7 +1,7 @@
 package bigtable
 
 import (
-	pb "final/proto/internal-api"
+	pb "final/proto/external-api"
 	"sync"
 )
 
@@ -40,14 +40,47 @@ import (
 //lock_tables {"client_id":[table1, table2']}，是一个字典结构，键是 client_id（代表客户端的唯一标识），值是一个列表，列表元素是表名称（如 table1、table2 等）。
 //用途：用于实现表的锁定机制，记录每个客户端（通过 client_id 区分）当前锁定了哪些表，在进行涉及表的并发操作（比如多个客户端同时操作同一个表可能导致数据不一致等问题）时，通过这个数据结构来判断某个客户端是否有权限操作某个表（是否已经锁定），从而保证数据操作的一致性和正确性。
 
+type TabletInfo struct {
+	Hostname string
+	Port     string
+	RowFrom  string
+	RowTo    string
+}
+
+type TableInfo struct {
+	Name           string
+	Tablets        []TabletInfo
+	ColumnFamilies []string
+}
+
 type MasterServer struct {
 	pb.UnimplementedMasterServiceServer
-	TabletAssignments map[string][]*pb.TabletAssignment
-	mu                sync.RWMutex
+
+	mu          sync.RWMutex
+	tabletDict  map[string][]string // key: tablet_address, value: tables hosted on that tablet
+	tabletList  []string            // list of tablet servers (host:port)
+	tableList   []string            // list of all tables
+	tablesInfo  map[string]*TableInfo
+	lockTables  map[string][]string // key: client_id, value: locked tables
+	tabletIndex int                 // for round-robin assignment of tablets
 }
 
 func NewMasterServer() *MasterServer {
 	return &MasterServer{
-		TabletAssignments: make(map[string][]*pb.TabletAssignment),
+		tabletDict: make(map[string][]string),
+		tablesInfo: make(map[string]*TableInfo),
+		lockTables: make(map[string][]string),
 	}
 }
+
+// type MasterServer struct {
+// 	pb.UnimplementedMasterServiceServer
+// 	TabletAssignments map[string][]*pb.TabletAssignment
+// 	mu                sync.RWMutex
+// }
+
+// func NewMasterServer() *MasterServer {
+// 	return &MasterServer{
+// 		TabletAssignments: make(map[string][]*pb.TabletAssignment),
+// 	}
+// }
