@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package bigtable;
+
+option go_package = "final/proto";
+
+service TabletInternalService {
+
+  //  // Assign a newly created table to a tablet server
+  //  rpc AssignTable(AssignTableRequest) returns (AssignTableResponse);
+  //
+  //  // Delete this tablet due to the deletion of a whole table
+  //  rpc UnassignTablet(UnassignTabletRequest) returns (UnassignTablet Response);
+  //
+  //  // Create a new column family for a tablet
+  //  rpc CreateTabletColumnFamily(CreateTabletColumnFamilyRequest) returns (CreateTabletColumnFamilyResponse);
+  //
+  //  // Delete a column family for a tablet
+  //  rpc DeleteTabletColumnFamily(DeleteTabletColumnFamilyRequest) returns (DeleteTabletColumnFamilyResponse);
+  //
+  //  // Split a tablet into two new tablets and move the other half into a designate tablet server
+  //  rpc SplitTablet(SplitTabletRequest) returns (SplitTabletResponse);
+
+  // Sharding
+  rpc CheckShardRequest(ShardRequest) returns (CheckShardResponse);
+  rpc UpdateShard(UpdateShardRequest) returns (UpdateShardResponse);
+  rpc ShardFinish(ShardFinishRequest) returns (ShardFinishResponse);
+}
+
+// Shard
+message ShardRequest {
+  string tablet_address = 1;
+  string table = 2;
+  repeated string shard_row = 3;
+  repeated string original_row = 4;
+}
+
+message UpdateShardRequest {
+  string table = 1;
+  map<string, TableRows> table_rows = 2;
+  map<string, TableColumns> table_columns = 3;
+  map<string, string> table_info = 4;
+}
+
+message TableRows {
+  repeated string values = 1;
+}
+
+message TableColumns {
+  repeated string values = 1;
+}
+
+message ShardFinishRequest {
+  string table = 1;
+  repeated ShardServerInfo data = 2;
+}
+
+message ShardServerInfo {
+  string hostname = 1;
+  string port = 2;
+  string row_from = 3;
+  string row_to = 4;
+}
+
+message CheckShardResponse {}
+message UpdateShardResponse {}
+message ShardFinishResponse {}
