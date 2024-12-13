@@ -71,7 +71,7 @@ message ShardRequest {
 
 // The master server will pick a target tablet to host the shard and tell the original tablet
 message ShardResponse {
-  string target_tablet_address = 1;
+//  string target_tablet_address = 1;
 }
 
 

@@ -45,17 +45,5 @@ message TableColumns {
   repeated string values = 1;
 }
 
-message ShardFinishRequest {
-  string table = 1;
-  repeated ShardServerInfo data = 2;
-}
-
-message ShardServerInfo {
-  string hostname = 1;
-  string port = 2;
-  string row_from = 3;
-  string row_to = 4;
-}
 
 message UpdateShardResponse {}
-message ShardFinishResponse {}

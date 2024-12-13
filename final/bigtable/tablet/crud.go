@@ -19,6 +19,7 @@ type ValueWithKeyAndTimestamps struct {
 	Key       string
 }
 
+// TODO: REMOVE OR REFACTOR THIS
 func (s *TabletServiceServer) CreateTable(ctx context.Context, req *proto.CreateTableRequest) (*proto.CreateTableResponse, error) {
 	tableName := req.TableName
 	db, err := leveldb.OpenFile(filepath.Join(s.TabletAddress, tableName), nil)
