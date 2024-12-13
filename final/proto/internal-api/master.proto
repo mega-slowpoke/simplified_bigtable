@@ -1,74 +1,28 @@
-syntax ="proto3";
+syntax = "proto3";
 
 package bigtable;
 
 option go_package = "final/proto";
+// Todo: Messages
 
-service MasterService {
-  rpc RegisterTablet (RegisterTabletRequest) returns (RegisterTabletResponse);
-  rpc UnregisterTablet (UnregisterTabletRequest) returns (UnregisterTabletRequest);
-  rpc GetTabletAssignments (GetTabletAssignmentsRequest) returns (GetTabletAssignmentsResponse);
-  rpc ReportTabletStatus (ReportTabletStatusRequest) returns (ReportTabletStatusResponse);
+service MasterInternalService {
+  // To notify that a tablet needs to be split
+  rpc ReportStatus(ReportStatusRequest) returns (ReportStatusResponse);
 }
 
+service TabletInternalService {
+  // Assign a newly created table to a tablet server
+  rpc AssignTable(AssignTableRequest) returns (AssignTableResponse);
 
+  // Delete this tablet due to the deletion of a whole table
+  rpc UnassignTablet(UnassignTabletRequest) returns (UnassignTablet Response);
 
-// Messages for master-server interactions
+  // Create a new column family for a tablet
+  rpc CreateTabletColumnFamily(CreateTabletColumnFamilyRequest) returns (CreateTabletColumnFamilyResponse);
 
-// register应该只负责最开始把tablet登记到master里面，不负责传递tablet具体有什么信息wo
-message RegisterTabletRequest {
-//  string table_name = 1;
-//  string table_start_row = 2;
-//  string table_end_row = 3;
-  string tablet_address = 4;
-}
+  // Delete a column family for a tablet
+  rpc DeleteTabletColumnFamily(DeleteTabletColumnFamilyRequest) returns (DeleteTabletColumnFamilyResponse);
 
-
-message RegisterTabletResponse {
-  //  bool success = 1;
-  //  string error_message = 2;
-}
-
-
-message UnregisterTabletRequest {
-  string tablet_address = 1;
-}
-
-
-message UnregisterTabletResponse {
-//  bool success = 1;
-//  string error_message = 2;
-}
-
-
-message GetTabletAssignmentsRequest {
-  string table_name = 1;
-}
-
-
-message GetTabletAssignmentsResponse {
-  repeated TabletAssignment tablet_assignments = 1;
-}
-
-
-message TabletAssignment {
-  string tablet_start_row = 1;
-  string tablet_end_row = 2;
-  string server_address = 3;
-}
-
-
-// OPTIONAL IN MVP
-message ReportTabletStatusRequest {
-  string table_name = 1;
-  string tablet_start_row = 2;
-  string tablet_end_row = 3;
-  string server_address = 4;
-  string status = 5;  // e.g., "HEALTHY", "UNRESPONSIVE", etc.
-}
-
-
-message ReportTabletStatusResponse {
-  bool success = 1;
-  string error_message = 2;
+  // Split a tablet into two new tablets and move the other half into a designate tablet server
+  rpc SplitTablet(SplitTabletRequest) returns (SplitTabletResponse);
 }

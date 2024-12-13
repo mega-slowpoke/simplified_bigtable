@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v4.24.4
-// source: tablet.proto
+// source: proto/external-api/tablet.proto
 
 package proto
 
@@ -235,5 +235,5 @@ var TabletService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "tablet.proto",
+	Metadata: "proto/external-api/tablet.proto",
 }

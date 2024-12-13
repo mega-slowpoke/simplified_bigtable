@@ -9,7 +9,6 @@ service MetadataService {
   rpc GetTabletLocation (TabletLocationRequest) returns (TabletLocationResponse);
 }
 
-
 // Messages for tablet location lookup
 message TabletLocationRequest {
   string table_name = 1;

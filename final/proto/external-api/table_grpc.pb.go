@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v4.24.4
-// source: table.proto
+// source: proto/external-api/table.proto
 
 package proto
 
@@ -23,28 +23,24 @@ const (
 	TableService_DeleteTable_FullMethodName        = "/bigtable.TableService/DeleteTable"
 	TableService_CreateColumnFamily_FullMethodName = "/bigtable.TableService/CreateColumnFamily"
 	TableService_DeleteColumnFamily_FullMethodName = "/bigtable.TableService/DeleteColumnFamily"
+	TableService_UpdateColumnFamily_FullMethodName = "/bigtable.TableService/UpdateColumnFamily"
 	TableService_ListTables_FullMethodName         = "/bigtable.TableService/ListTables"
-	TableService_ListColumnFamilies_FullMethodName = "/bigtable.TableService/ListColumnFamilies"
+	TableService_GetTableMetadata_FullMethodName   = "/bigtable.TableService/GetTableMetadata"
 )
 
 // TableServiceClient is the client API for TableService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Service for table and column family management
+// Service definition for Table Management
 type TableServiceClient interface {
-	// Creates a new table
 	CreateTable(ctx context.Context, in *CreateTableRequest, opts ...grpc.CallOption) (*CreateTableResponse, error)
-	// Deletes an existing table
 	DeleteTable(ctx context.Context, in *DeleteTableRequest, opts ...grpc.CallOption) (*DeleteTableResponse, error)
-	// Creates a new column family in a table
 	CreateColumnFamily(ctx context.Context, in *CreateColumnFamilyRequest, opts ...grpc.CallOption) (*CreateColumnFamilyResponse, error)
-	// Deletes a column family from a table
 	DeleteColumnFamily(ctx context.Context, in *DeleteColumnFamilyRequest, opts ...grpc.CallOption) (*DeleteColumnFamilyResponse, error)
-	// Lists all tables
+	UpdateColumnFamily(ctx context.Context, in *UpdateColumnFamilyRequest, opts ...grpc.CallOption) (*UpdateColumnFamilyResponse, error)
 	ListTables(ctx context.Context, in *ListTablesRequest, opts ...grpc.CallOption) (*ListTablesResponse, error)
-	// Lists all column families in a specified table
-	ListColumnFamilies(ctx context.Context, in *ListColumnFamiliesRequest, opts ...grpc.CallOption) (*ListColumnFamiliesResponse, error)
+	GetTableMetadata(ctx context.Context, in *TableMetadataRequest, opts ...grpc.CallOption) (*TableMetadataResponse, error)
 }
 
 type tableServiceClient struct {
@@ -95,6 +91,16 @@ func (c *tableServiceClient) DeleteColumnFamily(ctx context.Context, in *DeleteC
 	return out, nil
 }
 
+func (c *tableServiceClient) UpdateColumnFamily(ctx context.Context, in *UpdateColumnFamilyRequest, opts ...grpc.CallOption) (*UpdateColumnFamilyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateColumnFamilyResponse)
+	err := c.cc.Invoke(ctx, TableService_UpdateColumnFamily_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *tableServiceClient) ListTables(ctx context.Context, in *ListTablesRequest, opts ...grpc.CallOption) (*ListTablesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListTablesResponse)
@@ -105,10 +111,10 @@ func (c *tableServiceClient) ListTables(ctx context.Context, in *ListTablesReque
 	return out, nil
 }
 
-func (c *tableServiceClient) ListColumnFamilies(ctx context.Context, in *ListColumnFamiliesRequest, opts ...grpc.CallOption) (*ListColumnFamiliesResponse, error) {
+func (c *tableServiceClient) GetTableMetadata(ctx context.Context, in *TableMetadataRequest, opts ...grpc.CallOption) (*TableMetadataResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListColumnFamiliesResponse)
-	err := c.cc.Invoke(ctx, TableService_ListColumnFamilies_FullMethodName, in, out, cOpts...)
+	out := new(TableMetadataResponse)
+	err := c.cc.Invoke(ctx, TableService_GetTableMetadata_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -119,20 +125,15 @@ func (c *tableServiceClient) ListColumnFamilies(ctx context.Context, in *ListCol
 // All implementations must embed UnimplementedTableServiceServer
 // for forward compatibility.
 //
-// Service for table and column family management
+// Service definition for Table Management
 type TableServiceServer interface {
-	// Creates a new table
 	CreateTable(context.Context, *CreateTableRequest) (*CreateTableResponse, error)
-	// Deletes an existing table
 	DeleteTable(context.Context, *DeleteTableRequest) (*DeleteTableResponse, error)
-	// Creates a new column family in a table
 	CreateColumnFamily(context.Context, *CreateColumnFamilyRequest) (*CreateColumnFamilyResponse, error)
-	// Deletes a column family from a table
 	DeleteColumnFamily(context.Context, *DeleteColumnFamilyRequest) (*DeleteColumnFamilyResponse, error)
-	// Lists all tables
+	UpdateColumnFamily(context.Context, *UpdateColumnFamilyRequest) (*UpdateColumnFamilyResponse, error)
 	ListTables(context.Context, *ListTablesRequest) (*ListTablesResponse, error)
-	// Lists all column families in a specified table
-	ListColumnFamilies(context.Context, *ListColumnFamiliesRequest) (*ListColumnFamiliesResponse, error)
+	GetTableMetadata(context.Context, *TableMetadataRequest) (*TableMetadataResponse, error)
 	mustEmbedUnimplementedTableServiceServer()
 }
 
@@ -155,11 +156,14 @@ func (UnimplementedTableServiceServer) CreateColumnFamily(context.Context, *Crea
 func (UnimplementedTableServiceServer) DeleteColumnFamily(context.Context, *DeleteColumnFamilyRequest) (*DeleteColumnFamilyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteColumnFamily not implemented")
 }
+func (UnimplementedTableServiceServer) UpdateColumnFamily(context.Context, *UpdateColumnFamilyRequest) (*UpdateColumnFamilyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateColumnFamily not implemented")
+}
 func (UnimplementedTableServiceServer) ListTables(context.Context, *ListTablesRequest) (*ListTablesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListTables not implemented")
 }
-func (UnimplementedTableServiceServer) ListColumnFamilies(context.Context, *ListColumnFamiliesRequest) (*ListColumnFamiliesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListColumnFamilies not implemented")
+func (UnimplementedTableServiceServer) GetTableMetadata(context.Context, *TableMetadataRequest) (*TableMetadataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTableMetadata not implemented")
 }
 func (UnimplementedTableServiceServer) mustEmbedUnimplementedTableServiceServer() {}
 func (UnimplementedTableServiceServer) testEmbeddedByValue()                      {}
@@ -254,6 +258,24 @@ func _TableService_DeleteColumnFamily_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TableService_UpdateColumnFamily_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateColumnFamilyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TableServiceServer).UpdateColumnFamily(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TableService_UpdateColumnFamily_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TableServiceServer).UpdateColumnFamily(ctx, req.(*UpdateColumnFamilyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TableService_ListTables_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListTablesRequest)
 	if err := dec(in); err != nil {
@@ -272,20 +294,20 @@ func _TableService_ListTables_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TableService_ListColumnFamilies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListColumnFamiliesRequest)
+func _TableService_GetTableMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TableMetadataRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TableServiceServer).ListColumnFamilies(ctx, in)
+		return srv.(TableServiceServer).GetTableMetadata(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TableService_ListColumnFamilies_FullMethodName,
+		FullMethod: TableService_GetTableMetadata_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TableServiceServer).ListColumnFamilies(ctx, req.(*ListColumnFamiliesRequest))
+		return srv.(TableServiceServer).GetTableMetadata(ctx, req.(*TableMetadataRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -314,14 +336,18 @@ var TableService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TableService_DeleteColumnFamily_Handler,
 		},
 		{
+			MethodName: "UpdateColumnFamily",
+			Handler:    _TableService_UpdateColumnFamily_Handler,
+		},
+		{
 			MethodName: "ListTables",
 			Handler:    _TableService_ListTables_Handler,
 		},
 		{
-			MethodName: "ListColumnFamilies",
-			Handler:    _TableService_ListColumnFamilies_Handler,
+			MethodName: "GetTableMetadata",
+			Handler:    _TableService_GetTableMetadata_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "table.proto",
+	Metadata: "proto/external-api/table.proto",
 }

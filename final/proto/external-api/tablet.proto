@@ -13,15 +13,6 @@ service TabletService {
   rpc Scan (ScanRequest) returns (ScanResponse);
 }
 
-//message CreateTableRequest {
-//  string table_name = 1;
-//}
-//
-//message CreateTableResponse {
-//  bool success = 1;
-//  string error_message = 2;
-//}
-
 // Messages for data operations
 message ReadRequest {
   string table_name = 1;
