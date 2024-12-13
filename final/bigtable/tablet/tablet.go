@@ -18,7 +18,7 @@ type TabletServiceServer struct {
 	TabletAddress string
 	MasterAddress string
 	MasterConn    *grpc.ClientConn
-	MasterClient  *ipb.MasterServiceClient
+	MasterClient  *ipb.MasterInternalServiceClient
 }
 
 func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
@@ -26,7 +26,7 @@ func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmt.Sprint("Tablet %s Could not connect to master", opt.TabletAddress))
 	}
-	masterClient := ipb.NewMasterServiceClient(conn)
+	masterClient := ipb.NewMasterInternalServiceClient(conn)
 
 	return &TabletServiceServer{
 		Tables:        make(map[string]*leveldb.DB),

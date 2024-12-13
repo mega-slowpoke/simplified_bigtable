@@ -19,215 +19,297 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MasterService_RegisterTablet_FullMethodName       = "/bigtable.MasterService/RegisterTablet"
-	MasterService_UnregisterTablet_FullMethodName     = "/bigtable.MasterService/UnregisterTablet"
-	MasterService_GetTabletAssignments_FullMethodName = "/bigtable.MasterService/GetTabletAssignments"
-	MasterService_ReportTabletStatus_FullMethodName   = "/bigtable.MasterService/ReportTabletStatus"
+	MasterInternalService_ReportStatus_FullMethodName      = "/bigtable.MasterInternalService/ReportStatus"
+	MasterInternalService_RegisterTablet_FullMethodName    = "/bigtable.MasterInternalService/RegisterTablet"
+	MasterInternalService_UnregisterTablet_FullMethodName  = "/bigtable.MasterInternalService/UnregisterTablet"
+	MasterInternalService_CheckShardRequest_FullMethodName = "/bigtable.MasterInternalService/CheckShardRequest"
+	MasterInternalService_UpdateShard_FullMethodName       = "/bigtable.MasterInternalService/UpdateShard"
+	MasterInternalService_ShardFinish_FullMethodName       = "/bigtable.MasterInternalService/ShardFinish"
 )
 
-// MasterServiceClient is the client API for MasterService service.
+// MasterInternalServiceClient is the client API for MasterInternalService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type MasterServiceClient interface {
+type MasterInternalServiceClient interface {
+	// To notify that a tablet needs to be split
+	ReportStatus(ctx context.Context, in *ReportStatusRequest, opts ...grpc.CallOption) (*ReportStatusResponse, error)
+	// Register
 	RegisterTablet(ctx context.Context, in *RegisterTabletRequest, opts ...grpc.CallOption) (*RegisterTabletResponse, error)
 	UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletRequest, error)
-	GetTabletAssignments(ctx context.Context, in *GetTabletAssignmentsRequest, opts ...grpc.CallOption) (*GetTabletAssignmentsResponse, error)
-	ReportTabletStatus(ctx context.Context, in *ReportTabletStatusRequest, opts ...grpc.CallOption) (*ReportTabletStatusResponse, error)
+	// Sharding
+	CheckShardRequest(ctx context.Context, in *ShardRequest, opts ...grpc.CallOption) (*CheckShardResponse, error)
+	UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error)
+	ShardFinish(ctx context.Context, in *ShardFinishRequest, opts ...grpc.CallOption) (*ShardFinishResponse, error)
 }
 
-type masterServiceClient struct {
+type masterInternalServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewMasterServiceClient(cc grpc.ClientConnInterface) MasterServiceClient {
-	return &masterServiceClient{cc}
+func NewMasterInternalServiceClient(cc grpc.ClientConnInterface) MasterInternalServiceClient {
+	return &masterInternalServiceClient{cc}
 }
 
-func (c *masterServiceClient) RegisterTablet(ctx context.Context, in *RegisterTabletRequest, opts ...grpc.CallOption) (*RegisterTabletResponse, error) {
+func (c *masterInternalServiceClient) ReportStatus(ctx context.Context, in *ReportStatusRequest, opts ...grpc.CallOption) (*ReportStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportStatusResponse)
+	err := c.cc.Invoke(ctx, MasterInternalService_ReportStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *masterInternalServiceClient) RegisterTablet(ctx context.Context, in *RegisterTabletRequest, opts ...grpc.CallOption) (*RegisterTabletResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RegisterTabletResponse)
-	err := c.cc.Invoke(ctx, MasterService_RegisterTablet_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, MasterInternalService_RegisterTablet_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *masterServiceClient) UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletRequest, error) {
+func (c *masterInternalServiceClient) UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletRequest, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UnregisterTabletRequest)
-	err := c.cc.Invoke(ctx, MasterService_UnregisterTablet_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, MasterInternalService_UnregisterTablet_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *masterServiceClient) GetTabletAssignments(ctx context.Context, in *GetTabletAssignmentsRequest, opts ...grpc.CallOption) (*GetTabletAssignmentsResponse, error) {
+func (c *masterInternalServiceClient) CheckShardRequest(ctx context.Context, in *ShardRequest, opts ...grpc.CallOption) (*CheckShardResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetTabletAssignmentsResponse)
-	err := c.cc.Invoke(ctx, MasterService_GetTabletAssignments_FullMethodName, in, out, cOpts...)
+	out := new(CheckShardResponse)
+	err := c.cc.Invoke(ctx, MasterInternalService_CheckShardRequest_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *masterServiceClient) ReportTabletStatus(ctx context.Context, in *ReportTabletStatusRequest, opts ...grpc.CallOption) (*ReportTabletStatusResponse, error) {
+func (c *masterInternalServiceClient) UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ReportTabletStatusResponse)
-	err := c.cc.Invoke(ctx, MasterService_ReportTabletStatus_FullMethodName, in, out, cOpts...)
+	out := new(UpdateShardResponse)
+	err := c.cc.Invoke(ctx, MasterInternalService_UpdateShard_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// MasterServiceServer is the server API for MasterService service.
-// All implementations must embed UnimplementedMasterServiceServer
+func (c *masterInternalServiceClient) ShardFinish(ctx context.Context, in *ShardFinishRequest, opts ...grpc.CallOption) (*ShardFinishResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ShardFinishResponse)
+	err := c.cc.Invoke(ctx, MasterInternalService_ShardFinish_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MasterInternalServiceServer is the server API for MasterInternalService service.
+// All implementations must embed UnimplementedMasterInternalServiceServer
 // for forward compatibility.
-type MasterServiceServer interface {
+type MasterInternalServiceServer interface {
+	// To notify that a tablet needs to be split
+	ReportStatus(context.Context, *ReportStatusRequest) (*ReportStatusResponse, error)
+	// Register
 	RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error)
 	UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error)
-	GetTabletAssignments(context.Context, *GetTabletAssignmentsRequest) (*GetTabletAssignmentsResponse, error)
-	ReportTabletStatus(context.Context, *ReportTabletStatusRequest) (*ReportTabletStatusResponse, error)
-	mustEmbedUnimplementedMasterServiceServer()
+	// Sharding
+	CheckShardRequest(context.Context, *ShardRequest) (*CheckShardResponse, error)
+	UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error)
+	ShardFinish(context.Context, *ShardFinishRequest) (*ShardFinishResponse, error)
+	mustEmbedUnimplementedMasterInternalServiceServer()
 }
 
-// UnimplementedMasterServiceServer must be embedded to have
+// UnimplementedMasterInternalServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedMasterServiceServer struct{}
+type UnimplementedMasterInternalServiceServer struct{}
 
-func (UnimplementedMasterServiceServer) RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error) {
+func (UnimplementedMasterInternalServiceServer) ReportStatus(context.Context, *ReportStatusRequest) (*ReportStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportStatus not implemented")
+}
+func (UnimplementedMasterInternalServiceServer) RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterTablet not implemented")
 }
-func (UnimplementedMasterServiceServer) UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error) {
+func (UnimplementedMasterInternalServiceServer) UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnregisterTablet not implemented")
 }
-func (UnimplementedMasterServiceServer) GetTabletAssignments(context.Context, *GetTabletAssignmentsRequest) (*GetTabletAssignmentsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetTabletAssignments not implemented")
+func (UnimplementedMasterInternalServiceServer) CheckShardRequest(context.Context, *ShardRequest) (*CheckShardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckShardRequest not implemented")
 }
-func (UnimplementedMasterServiceServer) ReportTabletStatus(context.Context, *ReportTabletStatusRequest) (*ReportTabletStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReportTabletStatus not implemented")
+func (UnimplementedMasterInternalServiceServer) UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateShard not implemented")
 }
-func (UnimplementedMasterServiceServer) mustEmbedUnimplementedMasterServiceServer() {}
-func (UnimplementedMasterServiceServer) testEmbeddedByValue()                       {}
+func (UnimplementedMasterInternalServiceServer) ShardFinish(context.Context, *ShardFinishRequest) (*ShardFinishResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ShardFinish not implemented")
+}
+func (UnimplementedMasterInternalServiceServer) mustEmbedUnimplementedMasterInternalServiceServer() {}
+func (UnimplementedMasterInternalServiceServer) testEmbeddedByValue()                               {}
 
-// UnsafeMasterServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to MasterServiceServer will
+// UnsafeMasterInternalServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MasterInternalServiceServer will
 // result in compilation errors.
-type UnsafeMasterServiceServer interface {
-	mustEmbedUnimplementedMasterServiceServer()
+type UnsafeMasterInternalServiceServer interface {
+	mustEmbedUnimplementedMasterInternalServiceServer()
 }
 
-func RegisterMasterServiceServer(s grpc.ServiceRegistrar, srv MasterServiceServer) {
-	// If the following call pancis, it indicates UnimplementedMasterServiceServer was
+func RegisterMasterInternalServiceServer(s grpc.ServiceRegistrar, srv MasterInternalServiceServer) {
+	// If the following call pancis, it indicates UnimplementedMasterInternalServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&MasterService_ServiceDesc, srv)
+	s.RegisterService(&MasterInternalService_ServiceDesc, srv)
 }
 
-func _MasterService_RegisterTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _MasterInternalService_ReportStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MasterInternalServiceServer).ReportStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MasterInternalService_ReportStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MasterInternalServiceServer).ReportStatus(ctx, req.(*ReportStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MasterInternalService_RegisterTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RegisterTabletRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MasterServiceServer).RegisterTablet(ctx, in)
+		return srv.(MasterInternalServiceServer).RegisterTablet(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MasterService_RegisterTablet_FullMethodName,
+		FullMethod: MasterInternalService_RegisterTablet_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterServiceServer).RegisterTablet(ctx, req.(*RegisterTabletRequest))
+		return srv.(MasterInternalServiceServer).RegisterTablet(ctx, req.(*RegisterTabletRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MasterService_UnregisterTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _MasterInternalService_UnregisterTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UnregisterTabletRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MasterServiceServer).UnregisterTablet(ctx, in)
+		return srv.(MasterInternalServiceServer).UnregisterTablet(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MasterService_UnregisterTablet_FullMethodName,
+		FullMethod: MasterInternalService_UnregisterTablet_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterServiceServer).UnregisterTablet(ctx, req.(*UnregisterTabletRequest))
+		return srv.(MasterInternalServiceServer).UnregisterTablet(ctx, req.(*UnregisterTabletRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MasterService_GetTabletAssignments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTabletAssignmentsRequest)
+func _MasterInternalService_CheckShardRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShardRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MasterServiceServer).GetTabletAssignments(ctx, in)
+		return srv.(MasterInternalServiceServer).CheckShardRequest(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MasterService_GetTabletAssignments_FullMethodName,
+		FullMethod: MasterInternalService_CheckShardRequest_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterServiceServer).GetTabletAssignments(ctx, req.(*GetTabletAssignmentsRequest))
+		return srv.(MasterInternalServiceServer).CheckShardRequest(ctx, req.(*ShardRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MasterService_ReportTabletStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReportTabletStatusRequest)
+func _MasterInternalService_UpdateShard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateShardRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MasterServiceServer).ReportTabletStatus(ctx, in)
+		return srv.(MasterInternalServiceServer).UpdateShard(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MasterService_ReportTabletStatus_FullMethodName,
+		FullMethod: MasterInternalService_UpdateShard_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterServiceServer).ReportTabletStatus(ctx, req.(*ReportTabletStatusRequest))
+		return srv.(MasterInternalServiceServer).UpdateShard(ctx, req.(*UpdateShardRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// MasterService_ServiceDesc is the grpc.ServiceDesc for MasterService service.
+func _MasterInternalService_ShardFinish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShardFinishRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MasterInternalServiceServer).ShardFinish(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MasterInternalService_ShardFinish_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MasterInternalServiceServer).ShardFinish(ctx, req.(*ShardFinishRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MasterInternalService_ServiceDesc is the grpc.ServiceDesc for MasterInternalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var MasterService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "bigtable.MasterService",
-	HandlerType: (*MasterServiceServer)(nil),
+var MasterInternalService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bigtable.MasterInternalService",
+	HandlerType: (*MasterInternalServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "ReportStatus",
+			Handler:    _MasterInternalService_ReportStatus_Handler,
+		},
+		{
 			MethodName: "RegisterTablet",
-			Handler:    _MasterService_RegisterTablet_Handler,
+			Handler:    _MasterInternalService_RegisterTablet_Handler,
 		},
 		{
 			MethodName: "UnregisterTablet",
-			Handler:    _MasterService_UnregisterTablet_Handler,
+			Handler:    _MasterInternalService_UnregisterTablet_Handler,
 		},
 		{
-			MethodName: "GetTabletAssignments",
-			Handler:    _MasterService_GetTabletAssignments_Handler,
+			MethodName: "CheckShardRequest",
+			Handler:    _MasterInternalService_CheckShardRequest_Handler,
 		},
 		{
-			MethodName: "ReportTabletStatus",
-			Handler:    _MasterService_ReportTabletStatus_Handler,
+			MethodName: "UpdateShard",
+			Handler:    _MasterInternalService_UpdateShard_Handler,
+		},
+		{
+			MethodName: "ShardFinish",
+			Handler:    _MasterInternalService_ShardFinish_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -8,21 +8,103 @@ option go_package = "final/proto";
 service MasterInternalService {
   // To notify that a tablet needs to be split
   rpc ReportStatus(ReportStatusRequest) returns (ReportStatusResponse);
+
+
+  // Register
+  rpc RegisterTablet (RegisterTabletRequest) returns (RegisterTabletResponse);
+  rpc UnregisterTablet (UnregisterTabletRequest) returns (UnregisterTabletRequest);
+
+
+  // Sharding
+  rpc CheckShardRequest(ShardRequest) returns (CheckShardResponse);
+  rpc UpdateShard(UpdateShardRequest) returns (UpdateShardResponse);
+  rpc ShardFinish(ShardFinishRequest) returns (ShardFinishResponse);
 }
 
-service TabletInternalService {
-  // Assign a newly created table to a tablet server
-  rpc AssignTable(AssignTableRequest) returns (AssignTableResponse);
+//service TabletInternalService {
+//  // Assign a newly created table to a tablet server
+//  rpc AssignTable(AssignTableRequest) returns (AssignTableResponse);
+//
+//  // Delete this tablet due to the deletion of a whole table
+//  rpc UnassignTablet(UnassignTabletRequest) returns (UnassignTablet Response);
+//
+//  // Create a new column family for a tablet
+//  rpc CreateTabletColumnFamily(CreateTabletColumnFamilyRequest) returns (CreateTabletColumnFamilyResponse);
+//
+//  // Delete a column family for a tablet
+//  rpc DeleteTabletColumnFamily(DeleteTabletColumnFamilyRequest) returns (DeleteTabletColumnFamilyResponse);
+//
+//  // Split a tablet into two new tablets and move the other half into a designate tablet server
+//  rpc SplitTablet(SplitTabletRequest) returns (SplitTabletResponse);
+//}
 
-  // Delete this tablet due to the deletion of a whole table
-  rpc UnassignTablet(UnassignTabletRequest) returns (UnassignTablet Response);
 
-  // Create a new column family for a tablet
-  rpc CreateTabletColumnFamily(CreateTabletColumnFamilyRequest) returns (CreateTabletColumnFamilyResponse);
-
-  // Delete a column family for a tablet
-  rpc DeleteTabletColumnFamily(DeleteTabletColumnFamilyRequest) returns (DeleteTabletColumnFamilyResponse);
-
-  // Split a tablet into two new tablets and move the other half into a designate tablet server
-  rpc SplitTablet(SplitTabletRequest) returns (SplitTabletResponse);
+// Report
+message ReportStatusRequest {
+  string table_name = 1;
+  string tablet_start_row = 2;
+  string tablet_end_row = 3;
+  string server_address = 4;
+  string status = 5;  // e.g., "HEALTHY", "UNRESPONSIVE", etc.
 }
+
+
+message ReportStatusResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+
+// Register
+message RegisterTabletRequest {
+  string tablet_address = 1;
+}
+
+message RegisterTabletResponse {}
+
+message UnregisterTabletRequest {
+  string tablet_address = 1;
+}
+
+message UnregisterTabletResponse {}
+
+
+// Shard
+message ShardRequest {
+  string tablet_address = 1;
+  string table = 2;
+  repeated string shard_row = 3;
+  repeated string original_row = 4;
+}
+
+message UpdateShardRequest {
+  string table = 1;
+  map<string, TableRows> table_rows = 2;
+  map<string, TableColumns> table_columns = 3;
+  map<string, string> table_info = 4;
+}
+
+message TableRows {
+  repeated string values = 1;
+}
+
+message TableColumns {
+  repeated string values = 1;
+}
+
+message ShardFinishRequest {
+  string table = 1;
+  repeated ShardServerInfo data = 2;
+}
+
+message ShardServerInfo {
+  string hostname = 1;
+  string port = 2;
+  string row_from = 3;
+  string row_to = 4;
+}
+
+message CheckShardResponse {}
+message UpdateShardResponse {}
+message ShardFinishResponse {}
+
