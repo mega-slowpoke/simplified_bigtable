@@ -19,6 +19,8 @@ type TabletServiceServer struct {
 	MasterAddress string
 	MasterConn    *grpc.ClientConn
 	MasterClient  *ipb.MasterInternalServiceClient
+	MaxShardSize  int
+	TablesRows    map[string][]string
 }
 
 func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
@@ -34,6 +36,7 @@ func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
 		MasterAddress: opt.MasterAddress, // "localhost:12345"
 		MasterConn:    conn,
 		MasterClient:  &masterClient,
+		MaxShardSize:  opt.MaxShardSize,
 	}, nil
 }
 

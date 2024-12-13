@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v4.24.4
-// source: master.proto
+// source: internal-master.proto
 
 package proto
 
@@ -19,12 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MasterInternalService_ReportStatus_FullMethodName      = "/bigtable.MasterInternalService/ReportStatus"
-	MasterInternalService_RegisterTablet_FullMethodName    = "/bigtable.MasterInternalService/RegisterTablet"
-	MasterInternalService_UnregisterTablet_FullMethodName  = "/bigtable.MasterInternalService/UnregisterTablet"
-	MasterInternalService_CheckShardRequest_FullMethodName = "/bigtable.MasterInternalService/CheckShardRequest"
-	MasterInternalService_UpdateShard_FullMethodName       = "/bigtable.MasterInternalService/UpdateShard"
-	MasterInternalService_ShardFinish_FullMethodName       = "/bigtable.MasterInternalService/ShardFinish"
+	MasterInternalService_ReportStatus_FullMethodName       = "/bigtable.MasterInternalService/ReportStatus"
+	MasterInternalService_RegisterTablet_FullMethodName     = "/bigtable.MasterInternalService/RegisterTablet"
+	MasterInternalService_UnregisterTablet_FullMethodName   = "/bigtable.MasterInternalService/UnregisterTablet"
+	MasterInternalService_NotifyShardRequest_FullMethodName = "/bigtable.MasterInternalService/NotifyShardRequest"
+	MasterInternalService_NotifyShardFinish_FullMethodName  = "/bigtable.MasterInternalService/NotifyShardFinish"
 )
 
 // MasterInternalServiceClient is the client API for MasterInternalService service.
@@ -36,10 +35,9 @@ type MasterInternalServiceClient interface {
 	// Register
 	RegisterTablet(ctx context.Context, in *RegisterTabletRequest, opts ...grpc.CallOption) (*RegisterTabletResponse, error)
 	UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletRequest, error)
-	// Sharding
-	CheckShardRequest(ctx context.Context, in *ShardRequest, opts ...grpc.CallOption) (*CheckShardResponse, error)
-	UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error)
-	ShardFinish(ctx context.Context, in *ShardFinishRequest, opts ...grpc.CallOption) (*ShardFinishResponse, error)
+	// Shard
+	NotifyShardRequest(ctx context.Context, in *ShardRequest, opts ...grpc.CallOption) (*ShardResponse, error)
+	NotifyShardFinish(ctx context.Context, in *ShardFinishNotificationRequest, opts ...grpc.CallOption) (*ShardFinishNotificationResponse, error)
 }
 
 type masterInternalServiceClient struct {
@@ -80,30 +78,20 @@ func (c *masterInternalServiceClient) UnregisterTablet(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *masterInternalServiceClient) CheckShardRequest(ctx context.Context, in *ShardRequest, opts ...grpc.CallOption) (*CheckShardResponse, error) {
+func (c *masterInternalServiceClient) NotifyShardRequest(ctx context.Context, in *ShardRequest, opts ...grpc.CallOption) (*ShardResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CheckShardResponse)
-	err := c.cc.Invoke(ctx, MasterInternalService_CheckShardRequest_FullMethodName, in, out, cOpts...)
+	out := new(ShardResponse)
+	err := c.cc.Invoke(ctx, MasterInternalService_NotifyShardRequest_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *masterInternalServiceClient) UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error) {
+func (c *masterInternalServiceClient) NotifyShardFinish(ctx context.Context, in *ShardFinishNotificationRequest, opts ...grpc.CallOption) (*ShardFinishNotificationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdateShardResponse)
-	err := c.cc.Invoke(ctx, MasterInternalService_UpdateShard_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *masterInternalServiceClient) ShardFinish(ctx context.Context, in *ShardFinishRequest, opts ...grpc.CallOption) (*ShardFinishResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ShardFinishResponse)
-	err := c.cc.Invoke(ctx, MasterInternalService_ShardFinish_FullMethodName, in, out, cOpts...)
+	out := new(ShardFinishNotificationResponse)
+	err := c.cc.Invoke(ctx, MasterInternalService_NotifyShardFinish_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -119,10 +107,9 @@ type MasterInternalServiceServer interface {
 	// Register
 	RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error)
 	UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error)
-	// Sharding
-	CheckShardRequest(context.Context, *ShardRequest) (*CheckShardResponse, error)
-	UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error)
-	ShardFinish(context.Context, *ShardFinishRequest) (*ShardFinishResponse, error)
+	// Shard
+	NotifyShardRequest(context.Context, *ShardRequest) (*ShardResponse, error)
+	NotifyShardFinish(context.Context, *ShardFinishNotificationRequest) (*ShardFinishNotificationResponse, error)
 	mustEmbedUnimplementedMasterInternalServiceServer()
 }
 
@@ -142,14 +129,11 @@ func (UnimplementedMasterInternalServiceServer) RegisterTablet(context.Context, 
 func (UnimplementedMasterInternalServiceServer) UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnregisterTablet not implemented")
 }
-func (UnimplementedMasterInternalServiceServer) CheckShardRequest(context.Context, *ShardRequest) (*CheckShardResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CheckShardRequest not implemented")
+func (UnimplementedMasterInternalServiceServer) NotifyShardRequest(context.Context, *ShardRequest) (*ShardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NotifyShardRequest not implemented")
 }
-func (UnimplementedMasterInternalServiceServer) UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateShard not implemented")
-}
-func (UnimplementedMasterInternalServiceServer) ShardFinish(context.Context, *ShardFinishRequest) (*ShardFinishResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ShardFinish not implemented")
+func (UnimplementedMasterInternalServiceServer) NotifyShardFinish(context.Context, *ShardFinishNotificationRequest) (*ShardFinishNotificationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NotifyShardFinish not implemented")
 }
 func (UnimplementedMasterInternalServiceServer) mustEmbedUnimplementedMasterInternalServiceServer() {}
 func (UnimplementedMasterInternalServiceServer) testEmbeddedByValue()                               {}
@@ -226,56 +210,38 @@ func _MasterInternalService_UnregisterTablet_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MasterInternalService_CheckShardRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _MasterInternalService_NotifyShardRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ShardRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MasterInternalServiceServer).CheckShardRequest(ctx, in)
+		return srv.(MasterInternalServiceServer).NotifyShardRequest(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MasterInternalService_CheckShardRequest_FullMethodName,
+		FullMethod: MasterInternalService_NotifyShardRequest_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterInternalServiceServer).CheckShardRequest(ctx, req.(*ShardRequest))
+		return srv.(MasterInternalServiceServer).NotifyShardRequest(ctx, req.(*ShardRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MasterInternalService_UpdateShard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateShardRequest)
+func _MasterInternalService_NotifyShardFinish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShardFinishNotificationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MasterInternalServiceServer).UpdateShard(ctx, in)
+		return srv.(MasterInternalServiceServer).NotifyShardFinish(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MasterInternalService_UpdateShard_FullMethodName,
+		FullMethod: MasterInternalService_NotifyShardFinish_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterInternalServiceServer).UpdateShard(ctx, req.(*UpdateShardRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _MasterInternalService_ShardFinish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ShardFinishRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MasterInternalServiceServer).ShardFinish(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MasterInternalService_ShardFinish_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterInternalServiceServer).ShardFinish(ctx, req.(*ShardFinishRequest))
+		return srv.(MasterInternalServiceServer).NotifyShardFinish(ctx, req.(*ShardFinishNotificationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -300,18 +266,14 @@ var MasterInternalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _MasterInternalService_UnregisterTablet_Handler,
 		},
 		{
-			MethodName: "CheckShardRequest",
-			Handler:    _MasterInternalService_CheckShardRequest_Handler,
+			MethodName: "NotifyShardRequest",
+			Handler:    _MasterInternalService_NotifyShardRequest_Handler,
 		},
 		{
-			MethodName: "UpdateShard",
-			Handler:    _MasterInternalService_UpdateShard_Handler,
-		},
-		{
-			MethodName: "ShardFinish",
-			Handler:    _MasterInternalService_ShardFinish_Handler,
+			MethodName: "NotifyShardFinish",
+			Handler:    _MasterInternalService_NotifyShardFinish_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "master.proto",
+	Metadata: "internal-master.proto",
 }

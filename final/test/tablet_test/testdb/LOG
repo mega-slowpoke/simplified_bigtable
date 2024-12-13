@@ -663,3 +663,45 @@
 18:03:31.165085 db@open done T·7.8165ms
 18:03:31.165085 db@close closing
 18:03:31.165085 db@close done T·0s
+=============== Dec 13, 2024 (EST) ===============
+17:20:12.971903 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+17:20:12.991951 version@stat F·[3 2] S·765B[457B 308B] Sc·[0.75 0.00]
+17:20:12.991951 db@open opening
+17:20:12.991951 journal@recovery F·1
+17:20:12.992456 journal@recovery recovering @125
+17:20:13.000713 memdb@flush created L0@127 N·1 S·154B "row..901,v47":"row..901,v47"
+17:20:13.001231 version@stat F·[4 2] S·919B[611B 308B] Sc·[1.00 0.00]
+17:20:13.007554 db@janitor F·8 G·0
+17:20:13.007554 db@open done T·15.6034ms
+17:20:13.008076 table@move L0@127 -> L1
+17:20:13.009126 version@stat F·[3 3] S·919B[457B 462B] Sc·[0.75 0.00]
+17:20:13.040872 db@close closing
+17:20:13.040872 db@close done T·0s
+=============== Dec 13, 2024 (EST) ===============
+17:20:32.320332 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+17:20:32.327863 version@stat F·[3 3] S·919B[457B 462B] Sc·[0.75 0.00]
+17:20:32.327863 db@open opening
+17:20:32.327863 journal@recovery F·1
+17:20:32.328384 journal@recovery recovering @128
+17:20:32.331028 memdb@flush created L0@130 N·1 S·149B "row..201,d49":"row..201,d49"
+17:20:32.331562 version@stat F·[4 3] S·1KiB[606B 462B] Sc·[1.00 0.00]
+17:20:32.337467 db@janitor F·9 G·0
+17:20:32.337467 db@open done T·9.6035ms
+17:20:32.337995 table@compaction L0·2 -> L1·0 S·303B Q·50
+17:20:32.339044 version@stat F·[2 3] S·765B[303B 462B] Sc·[0.50 0.00]
+17:20:32.339044 db@close closing
+17:20:32.340148 table@commit exiting
+17:20:32.340148 table@remove removed @130
+17:20:32.340148 table@remove removed @113
+17:20:32.340148 db@close done T·1.1042ms
+=============== Dec 13, 2024 (EST) ===============
+17:20:40.811056 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+17:20:40.817374 version@stat F·[2 3] S·765B[303B 462B] Sc·[0.50 0.00]
+17:20:40.817374 db@open opening
+17:20:40.817374 journal@recovery F·1
+17:20:40.817374 journal@recovery recovering @131
+17:20:40.817895 version@stat F·[2 3] S·765B[303B 462B] Sc·[0.50 0.00]
+17:20:40.824296 db@janitor F·7 G·0
+17:20:40.824296 db@open done T·6.9212ms
+17:20:40.824296 db@close closing
+17:20:40.824822 db@close done T·526.2µs

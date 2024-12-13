@@ -5,6 +5,7 @@ import (
 	"final/bigtable/tablet"
 	proto "final/proto/external-api"
 	"github.com/syndtr/goleveldb/leveldb"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -55,7 +56,7 @@ func TestCreateTable(t *testing.T) {
 }
 
 func TestTabletSingleWrite(t *testing.T) {
-	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
+	db, _ := leveldb.OpenFile(filepath.Join(TABLET_ADDRESS, TEST_TABLE_NAME), nil)
 
 	server := tablet.TabletServiceServer{
 		TabletAddress: TABLET_ADDRESS,
@@ -86,7 +87,7 @@ func TestTabletSingleWrite(t *testing.T) {
 }
 
 func TestTabletSingleRead(t *testing.T) {
-	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
+	db, _ := leveldb.OpenFile(filepath.Join(TABLET_ADDRESS, TEST_TABLE_NAME), nil)
 
 	server := tablet.TabletServiceServer{
 		TabletAddress: TABLET_ADDRESS,
@@ -123,7 +124,7 @@ func TestTabletSingleRead(t *testing.T) {
 
 // TODO: SingleWriteAndRead might lead to problem
 func TestTabletSingleWriteAndRead(t *testing.T) {
-	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
+	db, _ := leveldb.OpenFile(filepath.Join(TABLET_ADDRESS, TEST_TABLE_NAME), nil)
 
 	server := tablet.TabletServiceServer{
 		TabletAddress: TABLET_ADDRESS,
@@ -178,7 +179,7 @@ func TestTabletSingleWriteAndRead(t *testing.T) {
 }
 
 func TestTabletMultipleRead(t *testing.T) {
-	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
+	db, _ := leveldb.OpenFile(filepath.Join(TABLET_ADDRESS, TEST_TABLE_NAME), nil)
 
 	server := tablet.TabletServiceServer{
 		TabletAddress: TABLET_ADDRESS,
@@ -206,7 +207,7 @@ func TestTabletMultipleRead(t *testing.T) {
 }
 
 func TestTabletDelete(t *testing.T) {
-	db, _ := leveldb.OpenFile(TEST_TABLE_NAME, nil)
+	db, _ := leveldb.OpenFile(filepath.Join(TABLET_ADDRESS, TEST_TABLE_NAME), nil)
 
 	server := tablet.TabletServiceServer{
 		TabletAddress: TABLET_ADDRESS,

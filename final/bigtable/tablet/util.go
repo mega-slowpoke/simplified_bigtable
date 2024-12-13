@@ -8,9 +8,8 @@ import (
 
 type SetupOptions struct {
 	TabletAddress string
-	//TabletPort    string
 	MasterAddress string
-	//MasterPort    string
+	MaxShardSize  int
 }
 
 func BuildKey(rowKey, columnFamily, columnQualifier string, timestamp int64) string {

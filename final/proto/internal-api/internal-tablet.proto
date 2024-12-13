@@ -22,18 +22,13 @@ service TabletInternalService {
   //  rpc SplitTablet(SplitTabletRequest) returns (SplitTabletResponse);
 
   // Sharding
-  rpc CheckShardRequest(ShardRequest) returns (CheckShardResponse);
   rpc UpdateShard(UpdateShardRequest) returns (UpdateShardResponse);
   rpc ShardFinish(ShardFinishRequest) returns (ShardFinishResponse);
+
+
 }
 
-// Shard
-message ShardRequest {
-  string tablet_address = 1;
-  string table = 2;
-  repeated string shard_row = 3;
-  repeated string original_row = 4;
-}
+
 
 message UpdateShardRequest {
   string table = 1;
@@ -62,6 +57,5 @@ message ShardServerInfo {
   string row_to = 4;
 }
 
-message CheckShardResponse {}
 message UpdateShardResponse {}
 message ShardFinishResponse {}

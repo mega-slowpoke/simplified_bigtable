@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
+	"path/filepath"
 	"sort"
 )
 
@@ -20,17 +21,15 @@ type ValueWithKeyAndTimestamps struct {
 
 func (s *TabletServiceServer) CreateTable(ctx context.Context, req *proto.CreateTableRequest) (*proto.CreateTableResponse, error) {
 	tableName := req.TableName
-	db, err := leveldb.OpenFile(tableName, nil)
+	db, err := leveldb.OpenFile(filepath.Join(s.TabletAddress, tableName), nil)
 	if err != nil {
 		return &proto.CreateTableResponse{
-			Success:      false,
-			ErrorMessage: fmt.Sprintf("Failed to create table: %v", err),
+			Success: false,
 		}, nil
 	}
 	s.Tables[tableName] = db
 	return &proto.CreateTableResponse{
-		Success:      true,
-		ErrorMessage: "",
+		Success: true,
 	}, nil
 }
 
