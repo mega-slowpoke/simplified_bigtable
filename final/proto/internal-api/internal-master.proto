@@ -6,9 +6,6 @@ option go_package = "final/proto";
 // Todo: Messages
 
 service MasterInternalService {
-  // To notify that a tablet needs to be split
-  rpc ReportStatus(ReportStatusRequest) returns (ReportStatusResponse);
-
   // Register
   rpc RegisterTablet (RegisterTabletRequest) returns (RegisterTabletResponse);
   rpc UnregisterTablet (UnregisterTabletRequest) returns (UnregisterTabletRequest);
@@ -21,19 +18,19 @@ service MasterInternalService {
 
 
 // Report
-message ReportStatusRequest {
-  string table_name = 1;
-  string tablet_start_row = 2;
-  string tablet_end_row = 3;
-  string server_address = 4;
-  string status = 5;  // e.g., "HEALTHY", "UNRESPONSIVE", etc.
-}
-
-
-message ReportStatusResponse {
-  bool success = 1;
-  string error_message = 2;
-}
+//message ReportStatusRequest {
+//  string table_name = 1;
+//  string tablet_start_row = 2;
+//  string tablet_end_row = 3;
+//  string server_address = 4;
+//  string status = 5;  // e.g., "HEALTHY", "UNRESPONSIVE", etc.
+//}
+//
+//
+//message ReportStatusResponse {
+//  bool success = 1;
+//  string error_message = 2;
+//}
 
 
 

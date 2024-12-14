@@ -4,6 +4,9 @@ package bigtable;
 
 option go_package = "final/proto";
 
+//TODO: 加上GetLocation
+//      createTable要指定表结构
+
 // Message definitions for Table Management
 message CreateTableRequest {
   string table_name = 1;
@@ -83,8 +86,10 @@ message TableMetadataResponse {
 
 // Service definition for Table Management
 service TableService {
+  // TOP Priority
   rpc CreateTable (CreateTableRequest) returns (CreateTableResponse);
   rpc DeleteTable (DeleteTableRequest) returns (DeleteTableResponse);
+
   rpc CreateColumnFamily (CreateColumnFamilyRequest) returns (CreateColumnFamilyResponse);
   rpc DeleteColumnFamily (DeleteColumnFamilyRequest) returns (DeleteColumnFamilyResponse);
   rpc UpdateColumnFamily (UpdateColumnFamilyRequest) returns (UpdateColumnFamilyResponse);

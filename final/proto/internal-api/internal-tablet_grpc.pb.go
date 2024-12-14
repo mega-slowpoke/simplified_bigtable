@@ -20,7 +20,6 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	TabletInternalService_UpdateShard_FullMethodName = "/bigtable.TabletInternalService/UpdateShard"
-	TabletInternalService_ShardFinish_FullMethodName = "/bigtable.TabletInternalService/ShardFinish"
 )
 
 // TabletInternalServiceClient is the client API for TabletInternalService service.
@@ -29,7 +28,6 @@ const (
 type TabletInternalServiceClient interface {
 	// Sharding
 	UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error)
-	ShardFinish(ctx context.Context, in *ShardFinishRequest, opts ...grpc.CallOption) (*ShardFinishResponse, error)
 }
 
 type tabletInternalServiceClient struct {
@@ -50,23 +48,12 @@ func (c *tabletInternalServiceClient) UpdateShard(ctx context.Context, in *Updat
 	return out, nil
 }
 
-func (c *tabletInternalServiceClient) ShardFinish(ctx context.Context, in *ShardFinishRequest, opts ...grpc.CallOption) (*ShardFinishResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ShardFinishResponse)
-	err := c.cc.Invoke(ctx, TabletInternalService_ShardFinish_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // TabletInternalServiceServer is the server API for TabletInternalService service.
 // All implementations must embed UnimplementedTabletInternalServiceServer
 // for forward compatibility.
 type TabletInternalServiceServer interface {
 	// Sharding
 	UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error)
-	ShardFinish(context.Context, *ShardFinishRequest) (*ShardFinishResponse, error)
 	mustEmbedUnimplementedTabletInternalServiceServer()
 }
 
@@ -79,9 +66,6 @@ type UnimplementedTabletInternalServiceServer struct{}
 
 func (UnimplementedTabletInternalServiceServer) UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateShard not implemented")
-}
-func (UnimplementedTabletInternalServiceServer) ShardFinish(context.Context, *ShardFinishRequest) (*ShardFinishResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ShardFinish not implemented")
 }
 func (UnimplementedTabletInternalServiceServer) mustEmbedUnimplementedTabletInternalServiceServer() {}
 func (UnimplementedTabletInternalServiceServer) testEmbeddedByValue()                               {}
@@ -122,24 +106,6 @@ func _TabletInternalService_UpdateShard_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TabletInternalService_ShardFinish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ShardFinishRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TabletInternalServiceServer).ShardFinish(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TabletInternalService_ShardFinish_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TabletInternalServiceServer).ShardFinish(ctx, req.(*ShardFinishRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // TabletInternalService_ServiceDesc is the grpc.ServiceDesc for TabletInternalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -150,10 +116,6 @@ var TabletInternalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateShard",
 			Handler:    _TabletInternalService_UpdateShard_Handler,
-		},
-		{
-			MethodName: "ShardFinish",
-			Handler:    _TabletInternalService_ShardFinish_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

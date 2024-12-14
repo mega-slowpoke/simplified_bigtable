@@ -32,3 +32,12 @@ func ExtractTimestampFromKey(key string) (int64, error) {
 	timestamp := ^reversedTimestamp
 	return timestamp, nil
 }
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}

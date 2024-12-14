@@ -3,17 +3,11 @@ package tablet
 import (
 	"context"
 	ipb "final/proto/internal-api"
+	"fmt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"sort"
-)
-
-var (
-	tablesColumns map[string]map[string][]string
-	tablesInfo    map[string]string
-	tableList     struct {
-		Tables []string
-	}
-	shardMaxSize int
 )
 
 //-------------------------- Tablet As a grpc service consumer ------------------------------
@@ -75,4 +69,63 @@ func (s *TabletServiceServer) notifyMasterShardFinished(ctx context.Context, tab
 	return nil
 }
 
-//-------------------------- Tablet As a grpc service provider ------------------------------
+// UpdateShardRequest
+func (s *TabletServiceServer) notifyTabletServerForShardUpdate(ctx context.Context, tableName string, shardRowKeySet []string, targetTabletAddress string) error {
+	tableColumns := make(map[string]*ipb.Columns)
+	for columnFamily, columns := range s.TablesColumns[tableName] {
+		tableColumns[columnFamily] = &ipb.Columns{Columns: columns}
+	}
+
+	req := &ipb.UpdateShardRequest{
+		TableName:    tableName,
+		TableRows:    shardRowKeySet,
+		TableColumns: tableColumns,
+		//TableInfo:    s.TablesInfo,
+	}
+
+	//
+	conn, err := grpc.NewClient(targetTabletAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("did not connect: %v", err)
+	}
+	defer conn.Close()
+
+	client := ipb.NewTabletInternalServiceClient(conn)
+	_, err = client.UpdateShard(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to notify tablet server for shard update: %v", err)
+	}
+	return nil
+}
+
+// ------------------------ -- Tablet As a grpc service provider ------------------------------
+func (s *TabletServiceServer) UpdateShard(ctx context.Context, req *ipb.UpdateShardRequest) (*ipb.UpdateShardResponse, error) {
+	tableName := req.TableName
+	tableRows := req.TableRows
+	tableColumns := req.TableColumns
+	tableInfo := req.TableInfo
+
+	// move metadata
+	// add tableName to table list
+	if !contains(s.TableList, tableName) {
+		s.TableList = append(s.TableList, tableName)
+	}
+
+	// add row Keys to the tableRows
+	s.TablesRows[tableName] = []string{}
+	for _, rowKey := range tableRows {
+		s.TablesRows[tableName] = append(s.TablesRows[tableName], rowKey)
+	}
+
+	for columnFamily, columns := range tableColumns {
+		s.TablesColumns[tableName][columnFamily] = columns.ColumnNames
+	}
+
+	s.TablesInfo[tableName] = tableInfo
+
+	// TODO:  metadata_for_col_index(columnsJSON)
+
+	// move storage data
+
+	return &ipb.UpdateShardResponse{}, nil
+}

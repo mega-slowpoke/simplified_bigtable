@@ -11,9 +11,39 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// TabletService for gRPC
+//tables_rows ={
+//	"customers": {
+//		"customer_0001", "customer_0002", "customer_0003", // 客户表中的部分行键示例，假设行键是客户编号
+//		},
+//		"orders": {
+//		"order_0001", "order_0002", "order_0003", "order_0004", // 订单表中的部分行键示例，假设行键是订单编号
+//		},
+//	}
+
+//tables_columns = {
+//		"customers": {
+//			"basic_info": {
+//				"customer_name", "customer_email", "customer_phone",
+//			},
+//			"address_info": {
+//				"province", "city", "street", "zip_code",
+//			},
+//		},
+//		"orders": {
+//			"order_detail": {
+//				"product_name", "product_quantity", "product_price",
+//			},
+//			"order_status": {
+//				"status", "update_time",
+//			},
+//		},
+//   }
+//
+
+// TabletService
 type TabletServiceServer struct {
 	epb.UnimplementedTabletServiceServer
+	ipb.UnimplementedTabletInternalServiceServer
 	Tables        map[string]*leveldb.DB // tableName -> levelDB
 	TabletAddress string
 	MasterAddress string
@@ -21,6 +51,9 @@ type TabletServiceServer struct {
 	MasterClient  *ipb.MasterInternalServiceClient
 	MaxShardSize  int
 	TablesRows    map[string][]string
+	TablesColumns map[string]map[string][]string
+	TablesInfo    map[string]map[string]string
+	TableList     []string
 }
 
 func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
@@ -37,6 +70,10 @@ func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
 		MasterConn:    conn,
 		MasterClient:  &masterClient,
 		MaxShardSize:  opt.MaxShardSize,
+		TablesRows:    make(map[string][]string),
+		TablesColumns: make(map[string]map[string][]string),
+		TablesInfo:    make(map[string]map[string]string),
+		TableList:     make([]string, 0),
 	}, nil
 }
 

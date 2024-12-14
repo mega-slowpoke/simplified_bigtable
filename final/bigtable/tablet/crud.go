@@ -158,37 +158,3 @@ func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteReque
 
 	return &proto.DeleteResponse{Success: true}, nil
 }
-
-// Scan
-//func (s *TabletServiceServer) Scan(req *proto.ScanRequest, stream proto.TabletService_ScanServer) error {
-// TODO: how to add lock to Scan
-
-//startKey := buildKey(req.StartRowKey, req.ColumnFamily, req.ColumnQualifier, )
-//endKey := buildKey(req.EndRowKey, req.ColumnFamily, req.ColumnQualifier)
-
-//iter := s.db.NewIterator(nil, nil)
-//defer iter.Release()
-//
-//for iter.Next() {
-//	key := string(iter.Key())
-//	if key >= startKey && key <= endKey {
-//		value := iter.Value()
-//		timestamp := extractTimestampFromKey(string(value))
-//		if err := stream.Send(&proto.ScanResponse{
-//			RowKey:    key,
-//			Value:     value,
-//			Timestamp: timestamp,
-//		}); err != nil {
-//			log.Printf("Scan send error: %v", err)
-//			return err
-//		}
-//	}
-//}
-//
-//if err := iter.Error(); err != nil {
-//	log.Printf("Scan iterator error: %v", err)
-//	return err
-//}
-
-//	return nil
-//}
