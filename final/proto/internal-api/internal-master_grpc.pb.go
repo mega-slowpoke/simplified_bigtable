@@ -19,25 +19,22 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MasterInternalService_ReportStatus_FullMethodName       = "/bigtable.MasterInternalService/ReportStatus"
 	MasterInternalService_RegisterTablet_FullMethodName     = "/bigtable.MasterInternalService/RegisterTablet"
 	MasterInternalService_UnregisterTablet_FullMethodName   = "/bigtable.MasterInternalService/UnregisterTablet"
 	MasterInternalService_NotifyShardRequest_FullMethodName = "/bigtable.MasterInternalService/NotifyShardRequest"
 	MasterInternalService_NotifyShardFinish_FullMethodName  = "/bigtable.MasterInternalService/NotifyShardFinish"
+	MasterInternalService_Heartbeat_FullMethodName          = "/bigtable.MasterInternalService/Heartbeat"
 )
 
 // MasterInternalServiceClient is the client API for MasterInternalService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MasterInternalServiceClient interface {
-	// To notify that a tablet needs to be split
-	ReportStatus(ctx context.Context, in *ReportStatusRequest, opts ...grpc.CallOption) (*ReportStatusResponse, error)
-	// Register
 	RegisterTablet(ctx context.Context, in *RegisterTabletRequest, opts ...grpc.CallOption) (*RegisterTabletResponse, error)
 	UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletRequest, error)
-	// Shard
 	NotifyShardRequest(ctx context.Context, in *ShardRequest, opts ...grpc.CallOption) (*ShardResponse, error)
 	NotifyShardFinish(ctx context.Context, in *ShardFinishNotificationRequest, opts ...grpc.CallOption) (*ShardFinishNotificationResponse, error)
+	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 }
 
 type masterInternalServiceClient struct {
@@ -46,16 +43,6 @@ type masterInternalServiceClient struct {
 
 func NewMasterInternalServiceClient(cc grpc.ClientConnInterface) MasterInternalServiceClient {
 	return &masterInternalServiceClient{cc}
-}
-
-func (c *masterInternalServiceClient) ReportStatus(ctx context.Context, in *ReportStatusRequest, opts ...grpc.CallOption) (*ReportStatusResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ReportStatusResponse)
-	err := c.cc.Invoke(ctx, MasterInternalService_ReportStatus_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *masterInternalServiceClient) RegisterTablet(ctx context.Context, in *RegisterTabletRequest, opts ...grpc.CallOption) (*RegisterTabletResponse, error) {
@@ -98,18 +85,25 @@ func (c *masterInternalServiceClient) NotifyShardFinish(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *masterInternalServiceClient) Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HeartbeatResponse)
+	err := c.cc.Invoke(ctx, MasterInternalService_Heartbeat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MasterInternalServiceServer is the server API for MasterInternalService service.
 // All implementations must embed UnimplementedMasterInternalServiceServer
 // for forward compatibility.
 type MasterInternalServiceServer interface {
-	// To notify that a tablet needs to be split
-	ReportStatus(context.Context, *ReportStatusRequest) (*ReportStatusResponse, error)
-	// Register
 	RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error)
 	UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error)
-	// Shard
 	NotifyShardRequest(context.Context, *ShardRequest) (*ShardResponse, error)
 	NotifyShardFinish(context.Context, *ShardFinishNotificationRequest) (*ShardFinishNotificationResponse, error)
+	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	mustEmbedUnimplementedMasterInternalServiceServer()
 }
 
@@ -120,9 +114,6 @@ type MasterInternalServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMasterInternalServiceServer struct{}
 
-func (UnimplementedMasterInternalServiceServer) ReportStatus(context.Context, *ReportStatusRequest) (*ReportStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReportStatus not implemented")
-}
 func (UnimplementedMasterInternalServiceServer) RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterTablet not implemented")
 }
@@ -134,6 +125,9 @@ func (UnimplementedMasterInternalServiceServer) NotifyShardRequest(context.Conte
 }
 func (UnimplementedMasterInternalServiceServer) NotifyShardFinish(context.Context, *ShardFinishNotificationRequest) (*ShardFinishNotificationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method NotifyShardFinish not implemented")
+}
+func (UnimplementedMasterInternalServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
 }
 func (UnimplementedMasterInternalServiceServer) mustEmbedUnimplementedMasterInternalServiceServer() {}
 func (UnimplementedMasterInternalServiceServer) testEmbeddedByValue()                               {}
@@ -154,24 +148,6 @@ func RegisterMasterInternalServiceServer(s grpc.ServiceRegistrar, srv MasterInte
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&MasterInternalService_ServiceDesc, srv)
-}
-
-func _MasterInternalService_ReportStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReportStatusRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MasterInternalServiceServer).ReportStatus(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MasterInternalService_ReportStatus_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterInternalServiceServer).ReportStatus(ctx, req.(*ReportStatusRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _MasterInternalService_RegisterTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -246,6 +222,24 @@ func _MasterInternalService_NotifyShardFinish_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MasterInternalService_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HeartbeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MasterInternalServiceServer).Heartbeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MasterInternalService_Heartbeat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MasterInternalServiceServer).Heartbeat(ctx, req.(*HeartbeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MasterInternalService_ServiceDesc is the grpc.ServiceDesc for MasterInternalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -253,10 +247,6 @@ var MasterInternalService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "bigtable.MasterInternalService",
 	HandlerType: (*MasterInternalServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "ReportStatus",
-			Handler:    _MasterInternalService_ReportStatus_Handler,
-		},
 		{
 			MethodName: "RegisterTablet",
 			Handler:    _MasterInternalService_RegisterTablet_Handler,
@@ -272,6 +262,10 @@ var MasterInternalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "NotifyShardFinish",
 			Handler:    _MasterInternalService_NotifyShardFinish_Handler,
+		},
+		{
+			MethodName: "Heartbeat",
+			Handler:    _MasterInternalService_Heartbeat_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

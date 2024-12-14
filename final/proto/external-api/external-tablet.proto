@@ -4,16 +4,12 @@ package bigtable;
 
 option go_package = "final/proto";
 
-
-// Service for client interactions with user tablet servers
 service TabletService {
   rpc Read (ReadRequest) returns (ReadResponse);
   rpc Write (WriteRequest) returns (WriteResponse);
   rpc Delete (DeleteRequest) returns (DeleteResponse);
-  rpc Scan (ScanRequest) returns (ScanResponse);
 }
 
-// Messages for data operations
 message ReadRequest {
   string table_name = 1;
   string row_key = 2;
@@ -55,18 +51,4 @@ message DeleteRequest {
 message DeleteResponse {
   bool success = 1;
   string error_message = 2;
-}
-
-message ScanRequest {
-  string table_name = 1;
-  string start_row_key = 2;
-  string end_row_key = 3;
-  string column_family = 4;
-  string column_qualifier = 5;
-}
-
-message ScanResponse {
-  string row_key = 1;
-  bytes value = 2;
-  int64 timestamp = 3;
 }

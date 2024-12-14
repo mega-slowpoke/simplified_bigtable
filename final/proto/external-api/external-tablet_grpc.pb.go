@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v4.24.4
-// source: proto/external-api/tablet.proto
+// source: external-tablet.proto
 
 package proto
 
@@ -22,19 +22,15 @@ const (
 	TabletService_Read_FullMethodName   = "/bigtable.TabletService/Read"
 	TabletService_Write_FullMethodName  = "/bigtable.TabletService/Write"
 	TabletService_Delete_FullMethodName = "/bigtable.TabletService/Delete"
-	TabletService_Scan_FullMethodName   = "/bigtable.TabletService/Scan"
 )
 
 // TabletServiceClient is the client API for TabletService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Service for client interactions with user tablet servers
 type TabletServiceClient interface {
 	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error)
 	Write(ctx context.Context, in *WriteRequest, opts ...grpc.CallOption) (*WriteResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
-	Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResponse, error)
 }
 
 type tabletServiceClient struct {
@@ -75,26 +71,13 @@ func (c *tabletServiceClient) Delete(ctx context.Context, in *DeleteRequest, opt
 	return out, nil
 }
 
-func (c *tabletServiceClient) Scan(ctx context.Context, in *ScanRequest, opts ...grpc.CallOption) (*ScanResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ScanResponse)
-	err := c.cc.Invoke(ctx, TabletService_Scan_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // TabletServiceServer is the server API for TabletService service.
 // All implementations must embed UnimplementedTabletServiceServer
 // for forward compatibility.
-//
-// Service for client interactions with user tablet servers
 type TabletServiceServer interface {
 	Read(context.Context, *ReadRequest) (*ReadResponse, error)
 	Write(context.Context, *WriteRequest) (*WriteResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
-	Scan(context.Context, *ScanRequest) (*ScanResponse, error)
 	mustEmbedUnimplementedTabletServiceServer()
 }
 
@@ -113,9 +96,6 @@ func (UnimplementedTabletServiceServer) Write(context.Context, *WriteRequest) (*
 }
 func (UnimplementedTabletServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
-}
-func (UnimplementedTabletServiceServer) Scan(context.Context, *ScanRequest) (*ScanResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Scan not implemented")
 }
 func (UnimplementedTabletServiceServer) mustEmbedUnimplementedTabletServiceServer() {}
 func (UnimplementedTabletServiceServer) testEmbeddedByValue()                       {}
@@ -192,24 +172,6 @@ func _TabletService_Delete_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TabletService_Scan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ScanRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TabletServiceServer).Scan(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TabletService_Scan_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TabletServiceServer).Scan(ctx, req.(*ScanRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // TabletService_ServiceDesc is the grpc.ServiceDesc for TabletService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -229,11 +191,7 @@ var TabletService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Delete",
 			Handler:    _TabletService_Delete_Handler,
 		},
-		{
-			MethodName: "Scan",
-			Handler:    _TabletService_Scan_Handler,
-		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/external-api/tablet.proto",
+	Metadata: "external-tablet.proto",
 }

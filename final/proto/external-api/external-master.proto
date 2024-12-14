@@ -4,13 +4,20 @@ package bigtable;
 
 option go_package = "final/proto";
 
-//TODO: 加上GetLocation
-//      createTable要指定表结构
+service TableService {
+  rpc CreateTable (CreateTableRequest) returns (CreateTableResponse);
+  rpc DeleteTable (DeleteTableRequest) returns (DeleteTableResponse);
+  rpc GetTabletLocation(GetTabletLocationRequest) returns (GetTabletLocationResponse);
+}
 
-// Message definitions for Table Management
 message CreateTableRequest {
   string table_name = 1;
-  repeated string column_families = 2;  // Initial column families
+  repeated ColumnFamily column_families = 2;
+
+  message ColumnFamily {
+    string family_name = 1;
+    repeated string columns = 2;
+  }
 }
 
 message CreateTableResponse {
@@ -27,72 +34,13 @@ message DeleteTableResponse {
   string message = 2;
 }
 
-message CreateColumnFamilyRequest {
+message GetTabletLocationRequest {
   string table_name = 1;
-  string column_family = 2;
+  string key = 2; 
 }
 
-message CreateColumnFamilyResponse {
-  bool success = 1;
-  string message = 2;
-}
-
-message DeleteColumnFamilyRequest {
-  string table_name = 1;
-  string column_family = 2;
-}
-
-message DeleteColumnFamilyResponse {
-  bool success = 1;
-  string message = 2;
-}
-
-message UpdateColumnFamilyRequest {
-  string table_name = 1;
-  string column_family = 2;
-  string new_config = 3;
-}
-
-message UpdateColumnFamilyResponse {
-  bool success = 1;
-  string message = 2;
-}
-
-message ListTablesRequest {
-  // No fields needed for listing all tables
-}
-
-message ListTablesResponse {
-  repeated string table_names = 1;
-  bool success = 2;
-  string message = 3;
-}
-
-message TableMetadataRequest {
-  string table_name = 1;
-}
-
-message ColumnFamilyMetadata {
-  string name = 1;
-  repeated string columns = 2;  // List of column qualifiers within this column family
-}
-
-message TableMetadataResponse {
-  string table_name = 1;
-  repeated ColumnFamilyMetadata column_families = 2;
-  bool success = 3;
-  string message = 4;
-}
-
-// Service definition for Table Management
-service TableService {
-  // TOP Priority
-  rpc CreateTable (CreateTableRequest) returns (CreateTableResponse);
-  rpc DeleteTable (DeleteTableRequest) returns (DeleteTableResponse);
-
-  rpc CreateColumnFamily (CreateColumnFamilyRequest) returns (CreateColumnFamilyResponse);
-  rpc DeleteColumnFamily (DeleteColumnFamilyRequest) returns (DeleteColumnFamilyResponse);
-  rpc UpdateColumnFamily (UpdateColumnFamilyRequest) returns (UpdateColumnFamilyResponse);
-  rpc ListTables (ListTablesRequest) returns (ListTablesResponse);
-  rpc GetTableMetadata (TableMetadataRequest) returns (TableMetadataResponse);
+message GetTabletLocationResponse {
+  string tablet_server_address = 1;
+  string tablet_start_row = 2;    // Start of the tablet's row range
+  string tablet_end_row = 3;      // End of the tablet's row range
 }

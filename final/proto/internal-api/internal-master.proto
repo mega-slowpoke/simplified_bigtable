@@ -3,38 +3,17 @@ syntax = "proto3";
 package bigtable;
 
 option go_package = "final/proto";
-// Todo: Messages
 
 service MasterInternalService {
-  // Register
   rpc RegisterTablet (RegisterTabletRequest) returns (RegisterTabletResponse);
   rpc UnregisterTablet (UnregisterTabletRequest) returns (UnregisterTabletRequest);
 
-  // Shard
   rpc NotifyShardRequest(ShardRequest) returns (ShardResponse) {}
   rpc NotifyShardFinish(ShardFinishNotificationRequest) returns (ShardFinishNotificationResponse) {}
+
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
 }
 
-
-
-// Report
-//message ReportStatusRequest {
-//  string table_name = 1;
-//  string tablet_start_row = 2;
-//  string tablet_end_row = 3;
-//  string server_address = 4;
-//  string status = 5;  // e.g., "HEALTHY", "UNRESPONSIVE", etc.
-//}
-//
-//
-//message ReportStatusResponse {
-//  bool success = 1;
-//  string error_message = 2;
-//}
-
-
-
-// Register
 message RegisterTabletRequest {
   string tablet_address = 1;
 }
@@ -47,52 +26,20 @@ message UnregisterTabletRequest {
 
 message UnregisterTabletResponse {}
 
-
-// Shard
-
-// Suppose localhost:9091 has employees0001-0006 in its table previously,
-// now it want to move emp0001-emp0003 to another tablet server,
-// it will notify master server so master can update its data structure
-//  {
-//    "tablet_address": "localhost:9091",
-//    "table_name": "employees",
-//    "shard_row_keys": ["emp_0001", "emp_0002", "emp_0003"],
-//    "remaining_row_keys": ["emp_0004", "emp_0005", "emp_0006"]
-//   }
 message ShardRequest {
   string tablet_address = 1;
   string table_name = 2;
-  repeated string shard_row_keys = 3;
-  repeated string remaining_row_keys = 4;
 }
 
-// The master server will pick a target tablet to host the shard and tell the original tablet
 message ShardResponse {
-//  string target_tablet_address = 1;
+  string target_tablet_address = 1;
 }
 
-
-// After the sharding is done, the original tablet will notify the master and master will update its data structure
-
-// "table_name": "customers",
-//  "source":
-//    {
-//      "address": "localhost:9090",
-//      "row_from": "customer_0001",
-//      "row_to": "customer_1000"
-//    },
-//   "target": {
-//      "hostname": "localhost:9091",
-//      "row_from": "customer_1001",
-//      "row_to": "customer_2000"
-//       }
-//    }
 message ShardFinishNotificationRequest {
-  string table_name = 1; //
+  string table_name = 1;
   TabletRowRange source = 2; // include info about row range before and after sharding
   TabletRowRange target = 3;
 }
-
 
 message TabletRowRange {
   string tablet_address = 1;
@@ -100,6 +47,12 @@ message TabletRowRange {
   string row_to = 3;
 }
 
-
-
 message ShardFinishNotificationResponse {}
+
+message HeartbeatRequest {
+  string tablet_server_id = 1;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+}

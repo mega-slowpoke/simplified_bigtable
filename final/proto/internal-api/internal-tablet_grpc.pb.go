@@ -19,15 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TabletInternalService_UpdateShard_FullMethodName = "/bigtable.TabletInternalService/UpdateShard"
+	TabletInternalService_CreateTable_FullMethodName = "/bigtable.TabletInternalService/CreateTable"
+	TabletInternalService_DeleteTable_FullMethodName = "/bigtable.TabletInternalService/DeleteTable"
 )
 
 // TabletInternalServiceClient is the client API for TabletInternalService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TabletInternalServiceClient interface {
-	// Sharding
-	UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error)
+	CreateTable(ctx context.Context, in *CreateTableInternalRequest, opts ...grpc.CallOption) (*CreateTableInternalResponse, error)
+	DeleteTable(ctx context.Context, in *DeleteTableInternalRequest, opts ...grpc.CallOption) (*DeleteTableInternalResponse, error)
 }
 
 type tabletInternalServiceClient struct {
@@ -38,10 +39,20 @@ func NewTabletInternalServiceClient(cc grpc.ClientConnInterface) TabletInternalS
 	return &tabletInternalServiceClient{cc}
 }
 
-func (c *tabletInternalServiceClient) UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error) {
+func (c *tabletInternalServiceClient) CreateTable(ctx context.Context, in *CreateTableInternalRequest, opts ...grpc.CallOption) (*CreateTableInternalResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdateShardResponse)
-	err := c.cc.Invoke(ctx, TabletInternalService_UpdateShard_FullMethodName, in, out, cOpts...)
+	out := new(CreateTableInternalResponse)
+	err := c.cc.Invoke(ctx, TabletInternalService_CreateTable_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tabletInternalServiceClient) DeleteTable(ctx context.Context, in *DeleteTableInternalRequest, opts ...grpc.CallOption) (*DeleteTableInternalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteTableInternalResponse)
+	err := c.cc.Invoke(ctx, TabletInternalService_DeleteTable_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +63,8 @@ func (c *tabletInternalServiceClient) UpdateShard(ctx context.Context, in *Updat
 // All implementations must embed UnimplementedTabletInternalServiceServer
 // for forward compatibility.
 type TabletInternalServiceServer interface {
-	// Sharding
-	UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error)
+	CreateTable(context.Context, *CreateTableInternalRequest) (*CreateTableInternalResponse, error)
+	DeleteTable(context.Context, *DeleteTableInternalRequest) (*DeleteTableInternalResponse, error)
 	mustEmbedUnimplementedTabletInternalServiceServer()
 }
 
@@ -64,8 +75,11 @@ type TabletInternalServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedTabletInternalServiceServer struct{}
 
-func (UnimplementedTabletInternalServiceServer) UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateShard not implemented")
+func (UnimplementedTabletInternalServiceServer) CreateTable(context.Context, *CreateTableInternalRequest) (*CreateTableInternalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateTable not implemented")
+}
+func (UnimplementedTabletInternalServiceServer) DeleteTable(context.Context, *DeleteTableInternalRequest) (*DeleteTableInternalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteTable not implemented")
 }
 func (UnimplementedTabletInternalServiceServer) mustEmbedUnimplementedTabletInternalServiceServer() {}
 func (UnimplementedTabletInternalServiceServer) testEmbeddedByValue()                               {}
@@ -88,20 +102,38 @@ func RegisterTabletInternalServiceServer(s grpc.ServiceRegistrar, srv TabletInte
 	s.RegisterService(&TabletInternalService_ServiceDesc, srv)
 }
 
-func _TabletInternalService_UpdateShard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateShardRequest)
+func _TabletInternalService_CreateTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateTableInternalRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TabletInternalServiceServer).UpdateShard(ctx, in)
+		return srv.(TabletInternalServiceServer).CreateTable(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TabletInternalService_UpdateShard_FullMethodName,
+		FullMethod: TabletInternalService_CreateTable_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TabletInternalServiceServer).UpdateShard(ctx, req.(*UpdateShardRequest))
+		return srv.(TabletInternalServiceServer).CreateTable(ctx, req.(*CreateTableInternalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TabletInternalService_DeleteTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteTableInternalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TabletInternalServiceServer).DeleteTable(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TabletInternalService_DeleteTable_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletInternalServiceServer).DeleteTable(ctx, req.(*DeleteTableInternalRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -114,8 +146,12 @@ var TabletInternalService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*TabletInternalServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "UpdateShard",
-			Handler:    _TabletInternalService_UpdateShard_Handler,
+			MethodName: "CreateTable",
+			Handler:    _TabletInternalService_CreateTable_Handler,
+		},
+		{
+			MethodName: "DeleteTable",
+			Handler:    _TabletInternalService_DeleteTable_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
