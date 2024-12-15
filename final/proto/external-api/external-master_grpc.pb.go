@@ -19,177 +19,177 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TableService_CreateTable_FullMethodName       = "/bigtable.TableService/CreateTable"
-	TableService_DeleteTable_FullMethodName       = "/bigtable.TableService/DeleteTable"
-	TableService_GetTabletLocation_FullMethodName = "/bigtable.TableService/GetTabletLocation"
+	MasterExternalService_CreateTable_FullMethodName       = "/bigtable.MasterExternalService/CreateTable"
+	MasterExternalService_DeleteTable_FullMethodName       = "/bigtable.MasterExternalService/DeleteTable"
+	MasterExternalService_GetTabletLocation_FullMethodName = "/bigtable.MasterExternalService/GetTabletLocation"
 )
 
-// TableServiceClient is the client API for TableService service.
+// MasterExternalServiceClient is the client API for MasterExternalService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type TableServiceClient interface {
+type MasterExternalServiceClient interface {
 	CreateTable(ctx context.Context, in *CreateTableRequest, opts ...grpc.CallOption) (*CreateTableResponse, error)
 	DeleteTable(ctx context.Context, in *DeleteTableRequest, opts ...grpc.CallOption) (*DeleteTableResponse, error)
 	GetTabletLocation(ctx context.Context, in *GetTabletLocationRequest, opts ...grpc.CallOption) (*GetTabletLocationResponse, error)
 }
 
-type tableServiceClient struct {
+type masterExternalServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewTableServiceClient(cc grpc.ClientConnInterface) TableServiceClient {
-	return &tableServiceClient{cc}
+func NewMasterExternalServiceClient(cc grpc.ClientConnInterface) MasterExternalServiceClient {
+	return &masterExternalServiceClient{cc}
 }
 
-func (c *tableServiceClient) CreateTable(ctx context.Context, in *CreateTableRequest, opts ...grpc.CallOption) (*CreateTableResponse, error) {
+func (c *masterExternalServiceClient) CreateTable(ctx context.Context, in *CreateTableRequest, opts ...grpc.CallOption) (*CreateTableResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateTableResponse)
-	err := c.cc.Invoke(ctx, TableService_CreateTable_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, MasterExternalService_CreateTable_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *tableServiceClient) DeleteTable(ctx context.Context, in *DeleteTableRequest, opts ...grpc.CallOption) (*DeleteTableResponse, error) {
+func (c *masterExternalServiceClient) DeleteTable(ctx context.Context, in *DeleteTableRequest, opts ...grpc.CallOption) (*DeleteTableResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteTableResponse)
-	err := c.cc.Invoke(ctx, TableService_DeleteTable_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, MasterExternalService_DeleteTable_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *tableServiceClient) GetTabletLocation(ctx context.Context, in *GetTabletLocationRequest, opts ...grpc.CallOption) (*GetTabletLocationResponse, error) {
+func (c *masterExternalServiceClient) GetTabletLocation(ctx context.Context, in *GetTabletLocationRequest, opts ...grpc.CallOption) (*GetTabletLocationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetTabletLocationResponse)
-	err := c.cc.Invoke(ctx, TableService_GetTabletLocation_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, MasterExternalService_GetTabletLocation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// TableServiceServer is the server API for TableService service.
-// All implementations must embed UnimplementedTableServiceServer
+// MasterExternalServiceServer is the server API for MasterExternalService service.
+// All implementations must embed UnimplementedMasterExternalServiceServer
 // for forward compatibility.
-type TableServiceServer interface {
+type MasterExternalServiceServer interface {
 	CreateTable(context.Context, *CreateTableRequest) (*CreateTableResponse, error)
 	DeleteTable(context.Context, *DeleteTableRequest) (*DeleteTableResponse, error)
 	GetTabletLocation(context.Context, *GetTabletLocationRequest) (*GetTabletLocationResponse, error)
-	mustEmbedUnimplementedTableServiceServer()
+	mustEmbedUnimplementedMasterExternalServiceServer()
 }
 
-// UnimplementedTableServiceServer must be embedded to have
+// UnimplementedMasterExternalServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedTableServiceServer struct{}
+type UnimplementedMasterExternalServiceServer struct{}
 
-func (UnimplementedTableServiceServer) CreateTable(context.Context, *CreateTableRequest) (*CreateTableResponse, error) {
+func (UnimplementedMasterExternalServiceServer) CreateTable(context.Context, *CreateTableRequest) (*CreateTableResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateTable not implemented")
 }
-func (UnimplementedTableServiceServer) DeleteTable(context.Context, *DeleteTableRequest) (*DeleteTableResponse, error) {
+func (UnimplementedMasterExternalServiceServer) DeleteTable(context.Context, *DeleteTableRequest) (*DeleteTableResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteTable not implemented")
 }
-func (UnimplementedTableServiceServer) GetTabletLocation(context.Context, *GetTabletLocationRequest) (*GetTabletLocationResponse, error) {
+func (UnimplementedMasterExternalServiceServer) GetTabletLocation(context.Context, *GetTabletLocationRequest) (*GetTabletLocationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTabletLocation not implemented")
 }
-func (UnimplementedTableServiceServer) mustEmbedUnimplementedTableServiceServer() {}
-func (UnimplementedTableServiceServer) testEmbeddedByValue()                      {}
+func (UnimplementedMasterExternalServiceServer) mustEmbedUnimplementedMasterExternalServiceServer() {}
+func (UnimplementedMasterExternalServiceServer) testEmbeddedByValue()                               {}
 
-// UnsafeTableServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to TableServiceServer will
+// UnsafeMasterExternalServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MasterExternalServiceServer will
 // result in compilation errors.
-type UnsafeTableServiceServer interface {
-	mustEmbedUnimplementedTableServiceServer()
+type UnsafeMasterExternalServiceServer interface {
+	mustEmbedUnimplementedMasterExternalServiceServer()
 }
 
-func RegisterTableServiceServer(s grpc.ServiceRegistrar, srv TableServiceServer) {
-	// If the following call pancis, it indicates UnimplementedTableServiceServer was
+func RegisterMasterExternalServiceServer(s grpc.ServiceRegistrar, srv MasterExternalServiceServer) {
+	// If the following call pancis, it indicates UnimplementedMasterExternalServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&TableService_ServiceDesc, srv)
+	s.RegisterService(&MasterExternalService_ServiceDesc, srv)
 }
 
-func _TableService_CreateTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _MasterExternalService_CreateTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateTableRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TableServiceServer).CreateTable(ctx, in)
+		return srv.(MasterExternalServiceServer).CreateTable(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TableService_CreateTable_FullMethodName,
+		FullMethod: MasterExternalService_CreateTable_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TableServiceServer).CreateTable(ctx, req.(*CreateTableRequest))
+		return srv.(MasterExternalServiceServer).CreateTable(ctx, req.(*CreateTableRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TableService_DeleteTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _MasterExternalService_DeleteTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteTableRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TableServiceServer).DeleteTable(ctx, in)
+		return srv.(MasterExternalServiceServer).DeleteTable(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TableService_DeleteTable_FullMethodName,
+		FullMethod: MasterExternalService_DeleteTable_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TableServiceServer).DeleteTable(ctx, req.(*DeleteTableRequest))
+		return srv.(MasterExternalServiceServer).DeleteTable(ctx, req.(*DeleteTableRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TableService_GetTabletLocation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _MasterExternalService_GetTabletLocation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetTabletLocationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TableServiceServer).GetTabletLocation(ctx, in)
+		return srv.(MasterExternalServiceServer).GetTabletLocation(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TableService_GetTabletLocation_FullMethodName,
+		FullMethod: MasterExternalService_GetTabletLocation_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TableServiceServer).GetTabletLocation(ctx, req.(*GetTabletLocationRequest))
+		return srv.(MasterExternalServiceServer).GetTabletLocation(ctx, req.(*GetTabletLocationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// TableService_ServiceDesc is the grpc.ServiceDesc for TableService service.
+// MasterExternalService_ServiceDesc is the grpc.ServiceDesc for MasterExternalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var TableService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "bigtable.TableService",
-	HandlerType: (*TableServiceServer)(nil),
+var MasterExternalService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bigtable.MasterExternalService",
+	HandlerType: (*MasterExternalServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "CreateTable",
-			Handler:    _TableService_CreateTable_Handler,
+			Handler:    _MasterExternalService_CreateTable_Handler,
 		},
 		{
 			MethodName: "DeleteTable",
-			Handler:    _TableService_DeleteTable_Handler,
+			Handler:    _MasterExternalService_DeleteTable_Handler,
 		},
 		{
 			MethodName: "GetTabletLocation",
-			Handler:    _TableService_GetTabletLocation_Handler,
+			Handler:    _MasterExternalService_GetTabletLocation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

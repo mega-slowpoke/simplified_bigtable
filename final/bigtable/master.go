@@ -1,7 +1,8 @@
 package bigtable
 
 import (
-	pb "final/proto/internal-api"
+	epb "final/proto/external-api"
+	ipb "final/proto/internal-api"
 	"sync"
 )
 
@@ -54,7 +55,8 @@ type TableInfo struct {
 }
 
 type MasterServer struct {
-	pb.UnimplementedMasterServiceServer
+	ipb.UnimplementedMasterInternalServiceServer
+	epb.UnimplementedMasterExternalServiceServer
 
 	mu          sync.RWMutex
 	tabletDict  map[string][]string // key: tablet_address, value: tables hosted on that tablet

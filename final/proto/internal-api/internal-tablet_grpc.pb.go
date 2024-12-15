@@ -21,14 +21,18 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	TabletInternalService_CreateTable_FullMethodName = "/bigtable.TabletInternalService/CreateTable"
 	TabletInternalService_DeleteTable_FullMethodName = "/bigtable.TabletInternalService/DeleteTable"
+	TabletInternalService_Heartbeat_FullMethodName   = "/bigtable.TabletInternalService/Heartbeat"
 )
 
 // TabletInternalServiceClient is the client API for TabletInternalService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TabletInternalServiceClient interface {
+	// Table create
 	CreateTable(ctx context.Context, in *CreateTableInternalRequest, opts ...grpc.CallOption) (*CreateTableInternalResponse, error)
 	DeleteTable(ctx context.Context, in *DeleteTableInternalRequest, opts ...grpc.CallOption) (*DeleteTableInternalResponse, error)
+	// alive or not
+	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 }
 
 type tabletInternalServiceClient struct {
@@ -59,12 +63,25 @@ func (c *tabletInternalServiceClient) DeleteTable(ctx context.Context, in *Delet
 	return out, nil
 }
 
+func (c *tabletInternalServiceClient) Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HeartbeatResponse)
+	err := c.cc.Invoke(ctx, TabletInternalService_Heartbeat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TabletInternalServiceServer is the server API for TabletInternalService service.
 // All implementations must embed UnimplementedTabletInternalServiceServer
 // for forward compatibility.
 type TabletInternalServiceServer interface {
+	// Table create
 	CreateTable(context.Context, *CreateTableInternalRequest) (*CreateTableInternalResponse, error)
 	DeleteTable(context.Context, *DeleteTableInternalRequest) (*DeleteTableInternalResponse, error)
+	// alive or not
+	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	mustEmbedUnimplementedTabletInternalServiceServer()
 }
 
@@ -80,6 +97,9 @@ func (UnimplementedTabletInternalServiceServer) CreateTable(context.Context, *Cr
 }
 func (UnimplementedTabletInternalServiceServer) DeleteTable(context.Context, *DeleteTableInternalRequest) (*DeleteTableInternalResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteTable not implemented")
+}
+func (UnimplementedTabletInternalServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
 }
 func (UnimplementedTabletInternalServiceServer) mustEmbedUnimplementedTabletInternalServiceServer() {}
 func (UnimplementedTabletInternalServiceServer) testEmbeddedByValue()                               {}
@@ -138,6 +158,24 @@ func _TabletInternalService_DeleteTable_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TabletInternalService_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HeartbeatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TabletInternalServiceServer).Heartbeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TabletInternalService_Heartbeat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletInternalServiceServer).Heartbeat(ctx, req.(*HeartbeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TabletInternalService_ServiceDesc is the grpc.ServiceDesc for TabletInternalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +190,10 @@ var TabletInternalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteTable",
 			Handler:    _TabletInternalService_DeleteTable_Handler,
+		},
+		{
+			MethodName: "Heartbeat",
+			Handler:    _TabletInternalService_Heartbeat_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

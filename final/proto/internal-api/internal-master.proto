@@ -11,7 +11,7 @@ service MasterInternalService {
   rpc NotifyShardRequest(ShardRequest) returns (ShardResponse) {}
   rpc NotifyShardFinish(ShardFinishNotificationRequest) returns (ShardFinishNotificationResponse) {}
 
-  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
 }
 
 message RegisterTabletRequest {
@@ -49,10 +49,3 @@ message TabletRowRange {
 
 message ShardFinishNotificationResponse {}
 
-message HeartbeatRequest {
-  string tablet_server_id = 1;
-}
-
-message HeartbeatResponse {
-  bool success = 1;
-}

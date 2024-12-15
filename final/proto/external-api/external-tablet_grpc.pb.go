@@ -19,177 +19,177 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TabletService_Read_FullMethodName   = "/bigtable.TabletService/Read"
-	TabletService_Write_FullMethodName  = "/bigtable.TabletService/Write"
-	TabletService_Delete_FullMethodName = "/bigtable.TabletService/Delete"
+	TabletExternalService_Read_FullMethodName   = "/bigtable.TabletExternalService/Read"
+	TabletExternalService_Write_FullMethodName  = "/bigtable.TabletExternalService/Write"
+	TabletExternalService_Delete_FullMethodName = "/bigtable.TabletExternalService/Delete"
 )
 
-// TabletServiceClient is the client API for TabletService service.
+// TabletExternalServiceClient is the client API for TabletExternalService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type TabletServiceClient interface {
+type TabletExternalServiceClient interface {
 	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error)
 	Write(ctx context.Context, in *WriteRequest, opts ...grpc.CallOption) (*WriteResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 }
 
-type tabletServiceClient struct {
+type tabletExternalServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewTabletServiceClient(cc grpc.ClientConnInterface) TabletServiceClient {
-	return &tabletServiceClient{cc}
+func NewTabletExternalServiceClient(cc grpc.ClientConnInterface) TabletExternalServiceClient {
+	return &tabletExternalServiceClient{cc}
 }
 
-func (c *tabletServiceClient) Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error) {
+func (c *tabletExternalServiceClient) Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReadResponse)
-	err := c.cc.Invoke(ctx, TabletService_Read_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, TabletExternalService_Read_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *tabletServiceClient) Write(ctx context.Context, in *WriteRequest, opts ...grpc.CallOption) (*WriteResponse, error) {
+func (c *tabletExternalServiceClient) Write(ctx context.Context, in *WriteRequest, opts ...grpc.CallOption) (*WriteResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(WriteResponse)
-	err := c.cc.Invoke(ctx, TabletService_Write_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, TabletExternalService_Write_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *tabletServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
+func (c *tabletExternalServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteResponse)
-	err := c.cc.Invoke(ctx, TabletService_Delete_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, TabletExternalService_Delete_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// TabletServiceServer is the server API for TabletService service.
-// All implementations must embed UnimplementedTabletServiceServer
+// TabletExternalServiceServer is the server API for TabletExternalService service.
+// All implementations must embed UnimplementedTabletExternalServiceServer
 // for forward compatibility.
-type TabletServiceServer interface {
+type TabletExternalServiceServer interface {
 	Read(context.Context, *ReadRequest) (*ReadResponse, error)
 	Write(context.Context, *WriteRequest) (*WriteResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
-	mustEmbedUnimplementedTabletServiceServer()
+	mustEmbedUnimplementedTabletExternalServiceServer()
 }
 
-// UnimplementedTabletServiceServer must be embedded to have
+// UnimplementedTabletExternalServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedTabletServiceServer struct{}
+type UnimplementedTabletExternalServiceServer struct{}
 
-func (UnimplementedTabletServiceServer) Read(context.Context, *ReadRequest) (*ReadResponse, error) {
+func (UnimplementedTabletExternalServiceServer) Read(context.Context, *ReadRequest) (*ReadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Read not implemented")
 }
-func (UnimplementedTabletServiceServer) Write(context.Context, *WriteRequest) (*WriteResponse, error) {
+func (UnimplementedTabletExternalServiceServer) Write(context.Context, *WriteRequest) (*WriteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Write not implemented")
 }
-func (UnimplementedTabletServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
+func (UnimplementedTabletExternalServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
-func (UnimplementedTabletServiceServer) mustEmbedUnimplementedTabletServiceServer() {}
-func (UnimplementedTabletServiceServer) testEmbeddedByValue()                       {}
+func (UnimplementedTabletExternalServiceServer) mustEmbedUnimplementedTabletExternalServiceServer() {}
+func (UnimplementedTabletExternalServiceServer) testEmbeddedByValue()                               {}
 
-// UnsafeTabletServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to TabletServiceServer will
+// UnsafeTabletExternalServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to TabletExternalServiceServer will
 // result in compilation errors.
-type UnsafeTabletServiceServer interface {
-	mustEmbedUnimplementedTabletServiceServer()
+type UnsafeTabletExternalServiceServer interface {
+	mustEmbedUnimplementedTabletExternalServiceServer()
 }
 
-func RegisterTabletServiceServer(s grpc.ServiceRegistrar, srv TabletServiceServer) {
-	// If the following call pancis, it indicates UnimplementedTabletServiceServer was
+func RegisterTabletExternalServiceServer(s grpc.ServiceRegistrar, srv TabletExternalServiceServer) {
+	// If the following call pancis, it indicates UnimplementedTabletExternalServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&TabletService_ServiceDesc, srv)
+	s.RegisterService(&TabletExternalService_ServiceDesc, srv)
 }
 
-func _TabletService_Read_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _TabletExternalService_Read_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReadRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TabletServiceServer).Read(ctx, in)
+		return srv.(TabletExternalServiceServer).Read(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TabletService_Read_FullMethodName,
+		FullMethod: TabletExternalService_Read_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TabletServiceServer).Read(ctx, req.(*ReadRequest))
+		return srv.(TabletExternalServiceServer).Read(ctx, req.(*ReadRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TabletService_Write_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _TabletExternalService_Write_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WriteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TabletServiceServer).Write(ctx, in)
+		return srv.(TabletExternalServiceServer).Write(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TabletService_Write_FullMethodName,
+		FullMethod: TabletExternalService_Write_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TabletServiceServer).Write(ctx, req.(*WriteRequest))
+		return srv.(TabletExternalServiceServer).Write(ctx, req.(*WriteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TabletService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _TabletExternalService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TabletServiceServer).Delete(ctx, in)
+		return srv.(TabletExternalServiceServer).Delete(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TabletService_Delete_FullMethodName,
+		FullMethod: TabletExternalService_Delete_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TabletServiceServer).Delete(ctx, req.(*DeleteRequest))
+		return srv.(TabletExternalServiceServer).Delete(ctx, req.(*DeleteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// TabletService_ServiceDesc is the grpc.ServiceDesc for TabletService service.
+// TabletExternalService_ServiceDesc is the grpc.ServiceDesc for TabletExternalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var TabletService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "bigtable.TabletService",
-	HandlerType: (*TabletServiceServer)(nil),
+var TabletExternalService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bigtable.TabletExternalService",
+	HandlerType: (*TabletExternalServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Read",
-			Handler:    _TabletService_Read_Handler,
+			Handler:    _TabletExternalService_Read_Handler,
 		},
 		{
 			MethodName: "Write",
-			Handler:    _TabletService_Write_Handler,
+			Handler:    _TabletExternalService_Write_Handler,
 		},
 		{
 			MethodName: "Delete",
-			Handler:    _TabletService_Delete_Handler,
+			Handler:    _TabletExternalService_Delete_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

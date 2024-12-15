@@ -30,3 +30,9 @@ func (s *TabletServiceServer) UnRegisterMyself() error {
 
 	return nil
 }
+
+func (s *TabletServiceServer) Heartbeat(ctx context.Context, request *ipb.HeartbeatRequest) (*ipb.HeartbeatResponse, error) {
+	return &ipb.HeartbeatResponse{
+		Success: true,
+	}, nil
+}

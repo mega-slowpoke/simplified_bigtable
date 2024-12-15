@@ -5,9 +5,12 @@ package bigtable;
 option go_package = "final/proto";
 
 service TabletInternalService {
-   rpc CreateTable (CreateTableInternalRequest) returns (CreateTableInternalResponse);
+    // Table create
+    rpc CreateTable (CreateTableInternalRequest) returns (CreateTableInternalResponse);
+    rpc DeleteTable (DeleteTableInternalRequest) returns (DeleteTableInternalResponse);
 
-   rpc DeleteTable (DeleteTableInternalRequest) returns (DeleteTableInternalResponse);
+   // alive or not
+   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
 }
 
 message CreateTableInternalRequest {
@@ -32,4 +35,12 @@ message DeleteTableInternalRequest {
 message DeleteTableInternalResponse {
   bool success = 1;
   string message = 2;
+}
+
+message HeartbeatRequest {
+  string tablet_server_id = 1;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
 }

@@ -4,7 +4,7 @@ package bigtable;
 
 option go_package = "final/proto";
 
-service TabletService {
+service TabletExternalService {
   rpc Read (ReadRequest) returns (ReadResponse);
   rpc Write (WriteRequest) returns (WriteResponse);
   rpc Delete (DeleteRequest) returns (DeleteResponse);

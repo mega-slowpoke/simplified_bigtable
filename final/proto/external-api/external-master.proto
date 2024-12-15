@@ -4,7 +4,7 @@ package bigtable;
 
 option go_package = "final/proto";
 
-service TableService {
+service MasterExternalService {
   rpc CreateTable (CreateTableRequest) returns (CreateTableResponse);
   rpc DeleteTable (DeleteTableRequest) returns (DeleteTableResponse);
   rpc GetTabletLocation(GetTabletLocationRequest) returns (GetTabletLocationResponse);

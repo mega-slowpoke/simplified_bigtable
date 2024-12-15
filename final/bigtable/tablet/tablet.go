@@ -42,7 +42,7 @@ import (
 
 // TabletService
 type TabletServiceServer struct {
-	epb.UnimplementedTabletServiceServer
+	epb.UnimplementedTabletExternalServiceServer
 	ipb.UnimplementedTabletInternalServiceServer
 	Tables        map[string]*leveldb.DB // tableName -> levelDB
 	TabletAddress string
