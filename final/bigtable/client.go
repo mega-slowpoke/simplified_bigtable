@@ -66,9 +66,9 @@ func (tc *TableCache) FindServerByRowKey(rowKey string) (string, bool) {
 
 type Client struct {
 	masterConn    *grpc.ClientConn
-	masterClient  pb.TableServiceClient
+	masterClient  pb.MasterExternalServiceClient
 	tabletConns   map[string]*grpc.ClientConn
-	tabletClients map[string]pb.TabletServiceClient
+	tabletClients map[string]pb.TabletExternalServiceClient
 	caches        map[string]*TableCache // map of table name to TableCache
 	mu            sync.RWMutex           // Protects tabletConns, tabletClients, and caches
 }
@@ -82,13 +82,13 @@ func NewClient(masterAddress string) (*Client, error) {
 		return nil, fmt.Errorf("failed to connect to master server: %v", err)
 	}
 
-	masterClient := pb.NewTableServiceClient(conn)
+	masterClient := pb.NewMasterExternalServiceClient(conn)
 
 	return &Client{
 		masterConn:    conn,
 		masterClient:  masterClient,
 		tabletConns:   make(map[string]*grpc.ClientConn),
-		tabletClients: make(map[string]pb.TabletServiceClient),
+		tabletClients: make(map[string]pb.TabletExternalServiceClient),
 		caches:        make(map[string]*TableCache),
 	}, nil
 }
@@ -237,7 +237,7 @@ func (c *Client) GetTabletLocation(tableName, rowKey string) (string, string, st
 }
 
 // getTabletClient retrieves or establishes a connection to a tablet server.
-func (c *Client) getTabletClient(tabletAddress string) (pb.TabletServiceClient, error) {
+func (c *Client) getTabletClient(tabletAddress string) (pb.TabletExternalServiceClient, error) {
 	c.mu.RLock()
 	client, exists := c.tabletClients[tabletAddress]
 	c.mu.RUnlock()
@@ -255,7 +255,7 @@ func (c *Client) getTabletClient(tabletAddress string) (pb.TabletServiceClient, 
 		return nil, fmt.Errorf("failed to connect to tablet server %s: %v", tabletAddress, err)
 	}
 
-	client = pb.NewTabletServiceClient(conn)
+	client = pb.NewTabletExternalServiceClient(conn)
 
 	c.mu.Lock()
 	c.tabletConns[tabletAddress] = conn

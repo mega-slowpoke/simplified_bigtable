@@ -30,7 +30,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MasterInternalServiceClient interface {
 	RegisterTablet(ctx context.Context, in *RegisterTabletRequest, opts ...grpc.CallOption) (*RegisterTabletResponse, error)
-	UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletRequest, error)
+	UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletResponse, error)
 	NotifyShardRequest(ctx context.Context, in *ShardRequest, opts ...grpc.CallOption) (*ShardResponse, error)
 	NotifyShardFinish(ctx context.Context, in *ShardFinishNotificationRequest, opts ...grpc.CallOption) (*ShardFinishNotificationResponse, error)
 }
@@ -53,9 +53,9 @@ func (c *masterInternalServiceClient) RegisterTablet(ctx context.Context, in *Re
 	return out, nil
 }
 
-func (c *masterInternalServiceClient) UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletRequest, error) {
+func (c *masterInternalServiceClient) UnregisterTablet(ctx context.Context, in *UnregisterTabletRequest, opts ...grpc.CallOption) (*UnregisterTabletResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UnregisterTabletRequest)
+	out := new(UnregisterTabletResponse)
 	err := c.cc.Invoke(ctx, MasterInternalService_UnregisterTablet_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (c *masterInternalServiceClient) NotifyShardFinish(ctx context.Context, in 
 // for forward compatibility.
 type MasterInternalServiceServer interface {
 	RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error)
-	UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error)
+	UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletResponse, error)
 	NotifyShardRequest(context.Context, *ShardRequest) (*ShardResponse, error)
 	NotifyShardFinish(context.Context, *ShardFinishNotificationRequest) (*ShardFinishNotificationResponse, error)
 	mustEmbedUnimplementedMasterInternalServiceServer()
@@ -104,7 +104,7 @@ type UnimplementedMasterInternalServiceServer struct{}
 func (UnimplementedMasterInternalServiceServer) RegisterTablet(context.Context, *RegisterTabletRequest) (*RegisterTabletResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterTablet not implemented")
 }
-func (UnimplementedMasterInternalServiceServer) UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletRequest, error) {
+func (UnimplementedMasterInternalServiceServer) UnregisterTablet(context.Context, *UnregisterTabletRequest) (*UnregisterTabletResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnregisterTablet not implemented")
 }
 func (UnimplementedMasterInternalServiceServer) NotifyShardRequest(context.Context, *ShardRequest) (*ShardResponse, error) {

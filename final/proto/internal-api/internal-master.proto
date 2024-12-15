@@ -6,12 +6,10 @@ option go_package = "final/proto";
 
 service MasterInternalService {
   rpc RegisterTablet (RegisterTabletRequest) returns (RegisterTabletResponse);
-  rpc UnregisterTablet (UnregisterTabletRequest) returns (UnregisterTabletRequest);
+  rpc UnregisterTablet (UnregisterTabletRequest) returns (UnregisterTabletResponse);
 
   rpc NotifyShardRequest(ShardRequest) returns (ShardResponse) {}
   rpc NotifyShardFinish(ShardFinishNotificationRequest) returns (ShardFinishNotificationResponse) {}
-
-
 }
 
 message RegisterTabletRequest {
