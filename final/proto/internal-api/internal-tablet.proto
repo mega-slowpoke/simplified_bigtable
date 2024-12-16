@@ -9,8 +9,11 @@ service TabletInternalService {
     rpc CreateTable (CreateTableInternalRequest) returns (CreateTableInternalResponse);
     rpc DeleteTable (DeleteTableInternalRequest) returns (DeleteTableInternalResponse);
 
-   // alive or not
-   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+    // alive or not
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+    // recover
+//    rpc Recover(RecoverRequest) returns (RecoverResponse);
 }
 
 message CreateTableInternalRequest {

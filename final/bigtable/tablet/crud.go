@@ -3,12 +3,14 @@ package tablet
 import (
 	"context"
 	proto "final/proto/external-api"
+	ipb "final/proto/internal-api"
 	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 )
@@ -19,17 +21,63 @@ type ValueWithKeyAndTimestamps struct {
 	Key       string
 }
 
-// TODO: REMOVE OR REFACTOR THIS
-func (s *TabletServiceServer) CreateTable(ctx context.Context, req *proto.CreateTableRequest) (*proto.CreateTableResponse, error) {
+func (s *TabletServiceServer) CreateTable(ctx context.Context, req *ipb.CreateTableInternalRequest) (*ipb.CreateTableInternalResponse, error) {
 	tableName := req.TableName
 	db, err := leveldb.OpenFile(filepath.Join(s.TabletAddress, tableName), nil)
 	if err != nil {
-		return &proto.CreateTableResponse{
+		return &ipb.CreateTableInternalResponse{
 			Success: false,
 		}, nil
 	}
 	s.Tables[tableName] = db
-	return &proto.CreateTableResponse{
+	return &ipb.CreateTableInternalResponse{
+		Success: true,
+	}, nil
+}
+
+func (s *TabletServiceServer) DeleteTable(ctx context.Context, req *ipb.DeleteTableInternalRequest) (*ipb.DeleteTableInternalResponse, error) {
+	tableName := req.TableName
+	// Check if the table exists in the map of tables
+	db, ok := s.Tables[tableName]
+	if !ok {
+		return &ipb.DeleteTableInternalResponse{
+			Success: false,
+			Message: fmt.Sprintf("Table %s not found", tableName),
+		}, nil
+	}
+
+	// Close the LevelDB instance first
+	err := db.Close()
+	if err != nil {
+		return &ipb.DeleteTableInternalResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to close LevelDB for table %s: %v", tableName, err),
+		}, nil
+	}
+
+	// Get the file path of the LevelDB database
+	dbPath := filepath.Join(s.TabletAddress, tableName)
+	// Walk through the directory and delete files
+	err = filepath.Walk(dbPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return os.Remove(path)
+		}
+		return os.Remove(path)
+	})
+	if err != nil {
+		return &ipb.DeleteTableInternalResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to delete LevelDB database at %s: %v", dbPath, err),
+		}, nil
+	}
+
+	// Remove the reference from the Tables map
+	delete(s.Tables, tableName)
+
+	return &ipb.DeleteTableInternalResponse{
 		Success: true,
 	}, nil
 }
