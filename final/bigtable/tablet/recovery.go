@@ -1,58 +1,129 @@
 package tablet
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
-	"github.com/syndtr/goleveldb/leveldb/util"
+	"github.com/sirupsen/logrus"
+	"github.com/syndtr/goleveldb/leveldb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"log"
+	"os"
+	"path/filepath"
 )
 
-func (s *TabletServiceServer) recover(recoverySource string, tableName string) error {
-	sourcePath := GetFilePath(recoverySource, tableName)
+func (s *TabletServiceServer) recover(crashedServerAddress string, tableName string) error {
+	// Step1: create table if not exist
+	dbPath := GetFilePath(s.TabletAddress, tableName)
+	db, err := leveldb.OpenFile(dbPath, nil)
+	if err != nil {
+		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
+	}
+	s.Tables[tableName] = db
 
+	// move data (table contents and metadata) from "crashedServerAddress/tableName" to "s.TabletAddress/tableName"
+	err = s.recoverData(crashedServerAddress, tableName)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to recover actual data: %v", err)
+	}
+
+	// recover metadata first
+	err = s.rebuildColumnsMetadata(db)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to rebuild columns metadata: %v", err)
+	}
+
+	err = s.rebuildRowsMetadata(db)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to rebuild rows metadata: %v", err)
+	}
+
+	logrus.Info(fmt.Sprintf("Recovery completed successfully for: %s - %s, data is moved to %s", crashedServerAddress, tableName, s.TabletAddress))
+	return nil
 }
 
-func (s *TabletServiceServer) recoverMetaData() {
+func (s *TabletServiceServer) rebuildColumnsMetadata(db *leveldb.DB) error {
+	data, err := db.Get([]byte("meta_row"), nil)
 	if err != nil {
-		return fmt.Errorf("failed to create target LevelDB: %v", err)
+		logrus.Fatalf("Read from LevelDB failed: %v", err)
 	}
-	defer targetTableFile.Close()
 
-	// 遍历所有表
-	for tableName, tableFile := range s.Tables {
-		defer tableFile.Close()
+	// decode serialized data to rebuild rowSet
+	var restoredRowSet map[string]struct{}
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	if err = decoder.Decode(&restoredRowSet); err != nil {
+		log.Fatal("Decode failed:", err)
+	}
 
-		// 构建用于范围查询的前缀
-		startPrefix := fmt.Sprintf("%s:", startRow)
-		endPrefix := fmt.Sprintf("%s:", endRow)
+	// just to check restored row set data when debugging
+	logrus.Debug("Restored Set: %v", restoredRowSet)
+	return nil
+}
 
-		iter := tableFile.NewIterator(util.BytesPrefix([]byte(startPrefix)), util.BytesPrefix([]byte(endPrefix)))
-		defer iter.Release()
+func (s *TabletServiceServer) rebuildRowsMetadata(db *leveldb.DB) error {
+	data, err := db.Get([]byte("meta_column"), nil)
+	if err != nil {
+		logrus.Fatalf("Read from LevelDB failed: %v", err)
+	}
 
-		// 遍历范围内的数据
-		for iter.Next() {
-			key := string(iter.Key())
-			value := string(iter.Value())
+	// decode serialized data to rebuild rowSet
+	var restoredColumnFamilies map[string][]string
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	if err = decoder.Decode(&restoredColumnFamilies); err != nil {
+		return status.Errorf(codes.Internal, "decoder failed: %v", err)
+	}
 
-			// 解析出原表中的各个部分（假设和之前写入逻辑中构造key的格式一致，可根据实际调整）
-			parts := ParseKey(key)
-			if len(parts) < 4 {
-				continue
-			}
-			rowKey := parts[0]
-			columnFamily := parts[1]
-			columnQualifier := parts[2]
-			timestamp := parts[3]
+	// just to check restored row set data when debugging
+	logrus.Debug("Restored ColumnFamilies: %v", restoredColumnFamilies)
+	return nil
+}
 
-			// 构造写入新LevelDB的key（格式需和原写入逻辑一致，可根据实际调整）
-			newKey := BuildKey(rowKey, columnFamily, columnQualifier, timestamp)
-			// 将数据写入新的LevelDB实例
-			err := targetTableFile.Put([]byte(newKey), []byte(value), nil)
-			if err != nil {
-				return fmt.Errorf("failed to write data to target LevelDB for table %s: %v", tableName, err)
-			}
+// recoverActualData - mimic moving data in crashedServerAddress to current tablet server
+func (s *TabletServiceServer) recoverData(crashedServerAddress string, tableName string) error {
+	sourceDataPath := GetFilePath(crashedServerAddress, tableName)
+	destDataPath := GetFilePath(s.TabletAddress, tableName)
+
+	// Ensure destination exists
+	if err := os.MkdirAll(filepath.Dir(destDataPath), os.ModePerm); err != nil {
+		return status.Errorf(codes.Internal, "failed to create dest data directory: %v", err)
+	}
+
+	// Move LevelDB files
+	if err := moveDir(sourceDataPath, destDataPath); err != nil {
+		return status.Errorf(codes.Internal, "failed to move data directory: %v", err)
+	}
+
+	logrus.Debug("move level db succeed")
+	return nil
+}
+
+// moveDir - Utility function to move a directory (recursively)
+func moveDir(sourceDir, destDir string) error {
+	// Remove destination directory if it already exists
+	if _, err := os.Stat(destDir); err == nil {
+		if err = os.RemoveAll(destDir); err != nil {
+			return fmt.Errorf("failed to remove existing destination directory: %v", err)
 		}
 	}
+
+	// Move directory
+	if err := os.Rename(sourceDir, destDir); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (s *TabletServiceServer) recoverActualData() {
-
-}
+//// moveFile - Utility function to move a file
+//func moveFile(sourcePath, destPath string) error {
+//	// Ensure destination directory exists
+//	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+//		return err
+//	}
+//
+//	// Move file
+//	if err := os.Rename(sourcePath, destPath); err != nil {
+//		return err
+//	}
+//	return nil
+//}

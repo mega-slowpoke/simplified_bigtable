@@ -14,6 +14,7 @@ type SetupOptions struct {
 	TestMode      bool
 }
 
+// localhost:9090, : is not allowed in the file path, replace it with _
 func GetFilePath(address string, tableName string) string {
 	address = strings.Replace(address, ":", "_", -1)
 	return filepath.Join(address, tableName)

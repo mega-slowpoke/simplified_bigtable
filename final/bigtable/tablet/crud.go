@@ -78,9 +78,8 @@ func (s *TabletServiceServer) DeleteTable(ctx context.Context, req *ipb.DeleteTa
 		}, nil
 	}
 
-	// Get the file path of the LevelDB database
 	dbPath := GetFilePath(s.TabletAddress, tableName)
-	// Delete Table and empty files
+	// Delete all files under the table
 	err = os.RemoveAll(dbPath)
 	if err != nil {
 		return &ipb.DeleteTableInternalResponse{
@@ -245,7 +244,8 @@ func WriteMetaDataToPersistent(metadataType string, data interface{}, db *leveld
 		log.Fatal(fmt.Sprintf("Encode metadata %v failed: %v", metadataType, err))
 	}
 
-	if err := db.Put([]byte(fmt.Sprintf("meta_%s", metadataType)), buf.Bytes(), nil); err != nil {
+	err := db.Put([]byte(fmt.Sprintf("meta_%s", metadataType)), buf.Bytes(), nil)
+	if err != nil {
 		log.Fatal(fmt.Sprintf("Persist %s to LevelDB failed: %v", metadataType, err))
 	}
 
