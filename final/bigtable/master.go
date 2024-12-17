@@ -76,7 +76,7 @@ func Make(address string) (func(), error) {
 	ipb.RegisterMasterInternalServiceServer(grpcServer, masterServer)
 
 	// Start heartbeat monitoring in a separate goroutine
-	go masterServer.monitorHeartbeats(10*time.Second, 5*time.Second)
+	go masterServer.MonitorHeartbeats(10*time.Second, 5*time.Second)
 
 	log.Printf("Master server is running on %s...", address)
 	go func() {
@@ -395,8 +395,8 @@ func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFin
 	return &ipb.ShardFinishNotificationResponse{}, nil
 }
 
-// monitorHeartbeats periodically sends Heartbeat RPCs to tablet servers to check their status.
-func (ms *MasterServer) monitorHeartbeats(interval time.Duration, timeout time.Duration) {
+// MonitorHeartbeats periodically sends Heartbeat RPCs to tablet servers to check their status.
+func (ms *MasterServer) MonitorHeartbeats(interval time.Duration, timeout time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -450,7 +450,7 @@ func (ms *MasterServer) sendHeartbeat(server *TabletServerInfo, timeout time.Dur
 	}
 	ms.state.mu.Unlock()
 
-	log.Printf("Heartbeat successful: Tablet server '%s' is online.", server.Address)
+	//log.Printf("Heartbeat successful: Tablet server '%s' is online.", server.Address)
 }
 
 // removeTabletServer removes a tablet server from the registry.

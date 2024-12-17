@@ -58,6 +58,9 @@ type TabletServiceServer struct {
 }
 
 func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
+	//var masterClient ipb.MasterInternalServiceClient
+	//var conn *grpc.ClientConn
+
 	conn, err := grpc.NewClient(opt.MasterAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmt.Sprint("Tablet %s Could not connect to master", opt.TabletAddress))

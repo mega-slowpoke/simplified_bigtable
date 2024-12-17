@@ -11,6 +11,7 @@ type SetupOptions struct {
 	TabletAddress string
 	MasterAddress string
 	MaxTableSize  int
+	TestMode      bool
 }
 
 func GetFilePath(address string, tableName string) string {
