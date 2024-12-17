@@ -22,6 +22,7 @@ const (
 	TabletInternalService_CreateTable_FullMethodName = "/bigtable.TabletInternalService/CreateTable"
 	TabletInternalService_DeleteTable_FullMethodName = "/bigtable.TabletInternalService/DeleteTable"
 	TabletInternalService_Heartbeat_FullMethodName   = "/bigtable.TabletInternalService/Heartbeat"
+	TabletInternalService_UpdateShard_FullMethodName = "/bigtable.TabletInternalService/UpdateShard"
 )
 
 // TabletInternalServiceClient is the client API for TabletInternalService service.
@@ -33,6 +34,8 @@ type TabletInternalServiceClient interface {
 	DeleteTable(ctx context.Context, in *DeleteTableInternalRequest, opts ...grpc.CallOption) (*DeleteTableInternalResponse, error)
 	// alive or not
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
+	// UpdateShard
+	UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error)
 }
 
 type tabletInternalServiceClient struct {
@@ -73,6 +76,16 @@ func (c *tabletInternalServiceClient) Heartbeat(ctx context.Context, in *Heartbe
 	return out, nil
 }
 
+func (c *tabletInternalServiceClient) UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateShardResponse)
+	err := c.cc.Invoke(ctx, TabletInternalService_UpdateShard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TabletInternalServiceServer is the server API for TabletInternalService service.
 // All implementations must embed UnimplementedTabletInternalServiceServer
 // for forward compatibility.
@@ -82,6 +95,8 @@ type TabletInternalServiceServer interface {
 	DeleteTable(context.Context, *DeleteTableInternalRequest) (*DeleteTableInternalResponse, error)
 	// alive or not
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
+	// UpdateShard
+	UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error)
 	mustEmbedUnimplementedTabletInternalServiceServer()
 }
 
@@ -100,6 +115,9 @@ func (UnimplementedTabletInternalServiceServer) DeleteTable(context.Context, *De
 }
 func (UnimplementedTabletInternalServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
+}
+func (UnimplementedTabletInternalServiceServer) UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateShard not implemented")
 }
 func (UnimplementedTabletInternalServiceServer) mustEmbedUnimplementedTabletInternalServiceServer() {}
 func (UnimplementedTabletInternalServiceServer) testEmbeddedByValue()                               {}
@@ -176,6 +194,24 @@ func _TabletInternalService_Heartbeat_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TabletInternalService_UpdateShard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateShardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TabletInternalServiceServer).UpdateShard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TabletInternalService_UpdateShard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletInternalServiceServer).UpdateShard(ctx, req.(*UpdateShardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TabletInternalService_ServiceDesc is the grpc.ServiceDesc for TabletInternalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -194,6 +230,10 @@ var TabletInternalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Heartbeat",
 			Handler:    _TabletInternalService_Heartbeat_Handler,
+		},
+		{
+			MethodName: "UpdateShard",
+			Handler:    _TabletInternalService_UpdateShard_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

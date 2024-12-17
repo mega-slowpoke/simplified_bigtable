@@ -11,7 +11,6 @@ import (
 	"google.golang.org/grpc/status"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 )
 
@@ -23,7 +22,13 @@ type ValueWithKeyAndTimestamps struct {
 
 func (s *TabletServiceServer) CreateTable(ctx context.Context, req *ipb.CreateTableInternalRequest) (*ipb.CreateTableInternalResponse, error) {
 	tableName := req.TableName
-	db, err := leveldb.OpenFile(filepath.Join(s.TabletAddress, tableName), nil)
+	_, exist := s.Tables[tableName]
+	if exist {
+		return nil, status.Error(codes.AlreadyExists, "table already exists")
+	}
+	// : is not allowed in the file path
+	dbPath := GetFilePath(s.TabletAddress, tableName)
+	db, err := leveldb.OpenFile(dbPath, nil)
 	if err != nil {
 		return &ipb.CreateTableInternalResponse{
 			Success: false,
@@ -56,17 +61,9 @@ func (s *TabletServiceServer) DeleteTable(ctx context.Context, req *ipb.DeleteTa
 	}
 
 	// Get the file path of the LevelDB database
-	dbPath := filepath.Join(s.TabletAddress, tableName)
-	// Walk through the directory and delete files
-	err = filepath.Walk(dbPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return os.Remove(path)
-		}
-		return os.Remove(path)
-	})
+	dbPath := GetFilePath(s.TabletAddress, tableName)
+	// Delete Table and empty files
+	err = os.RemoveAll(dbPath)
 	if err != nil {
 		return &ipb.DeleteTableInternalResponse{
 			Success: false,
@@ -95,8 +92,6 @@ func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) 
 	if !ok {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
 	}
-
-	defer tableFile.Close()
 
 	iter := tableFile.NewIterator(util.BytesPrefix([]byte(prefix)), nil)
 	defer iter.Release()
@@ -161,7 +156,6 @@ func (s *TabletServiceServer) Write(ctx context.Context, req *proto.WriteRequest
 	if !ok {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
 	}
-	defer tableFile.Close()
 
 	err := tableFile.Put([]byte(key), req.Value, nil)
 	if err != nil {
@@ -181,7 +175,6 @@ func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteReque
 	if !ok {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
 	}
-	defer tableFile.Close()
 
 	// iterate over all keys
 	iter := tableFile.NewIterator(util.BytesPrefix([]byte(prefix)), nil)

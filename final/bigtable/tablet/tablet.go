@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"log"
 )
 
 //tables_rows ={
@@ -49,7 +50,7 @@ type TabletServiceServer struct {
 	MasterAddress string
 	MasterConn    *grpc.ClientConn
 	MasterClient  *ipb.MasterInternalServiceClient
-	MaxShardSize  int
+	MaxTableCnt   int
 	TablesRows    map[string][]string
 	TablesColumns map[string]map[string][]string
 	TablesInfo    map[string]map[string]string
@@ -69,7 +70,7 @@ func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
 		MasterAddress: opt.MasterAddress, // "localhost:12345"
 		MasterConn:    conn,
 		MasterClient:  &masterClient,
-		MaxShardSize:  opt.MaxShardSize,
+		MaxTableCnt:   opt.MaxTableSize,
 		TablesRows:    make(map[string][]string),
 		TablesColumns: make(map[string]map[string][]string),
 		TablesInfo:    make(map[string]map[string]string),
@@ -81,5 +82,13 @@ func (s *TabletServiceServer) CloseMasterConnection() {
 	err := s.MasterConn.Close()
 	if err != nil {
 		return
+	}
+}
+
+func (s *TabletServiceServer) CloseAllTables() {
+	for name, db := range s.Tables {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close table %s: %v\n", name, err)
+		}
 	}
 }

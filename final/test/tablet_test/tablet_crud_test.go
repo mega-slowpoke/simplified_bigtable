@@ -4,7 +4,10 @@ import (
 	"context"
 	"final/bigtable/tablet"
 	proto "final/proto/external-api"
+	ipb "final/proto/internal-api"
+	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
+	"log"
 	"path/filepath"
 	"testing"
 	"time"
@@ -40,6 +43,28 @@ const (
 )
 
 func TestCreateTable(t *testing.T) {
+	server := tablet.TabletServiceServer{
+		TabletAddress: TABLET_ADDRESS,
+		MasterAddress: MASTER_ADDRESS,
+		Tables:        make(map[string]*leveldb.DB),
+	}
+
+	req := ipb.CreateTableInternalRequest{
+		TableName: TEST_TABLE_NAME,
+	}
+
+	_, err := server.CreateTable(context.Background(), &req)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Fail to create table: %v", err))
+	}
+
+	_, exist := server.Tables[TEST_TABLE_NAME]
+	if !exist {
+		log.Fatal(fmt.Sprintf("created table is not added to the map"))
+	}
+}
+
+func TestCreateDuplicateTable(t *testing.T) {
 	var db leveldb.DB
 	server := tablet.TabletServiceServer{
 		TabletAddress: TABLET_ADDRESS,
@@ -49,10 +74,85 @@ func TestCreateTable(t *testing.T) {
 		},
 	}
 
-	server.CreateTable(context.Background(), &proto.CreateTableRequest{
+	req := ipb.CreateTableInternalRequest{
 		TableName: TEST_TABLE_NAME,
-	})
+	}
 
+	_, err := server.CreateTable(context.Background(), &req)
+	if err == nil {
+		log.Fatal(fmt.Sprintf("Table exists, You shouldn't create duplicate table %v", err))
+	}
+}
+
+func TestDeleteTable(t *testing.T) {
+	server := tablet.TabletServiceServer{
+		TabletAddress: TABLET_ADDRESS,
+		MasterAddress: MASTER_ADDRESS,
+		Tables:        make(map[string]*leveldb.DB),
+	}
+
+	req := ipb.CreateTableInternalRequest{
+		TableName: TEST_TABLE_NAME,
+	}
+
+	_, err := server.CreateTable(context.Background(), &req)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Fail to create table %v", err))
+	}
+
+	ctx := context.Background()
+	timeNow := time.Now().UnixNano()
+	writeRequest := &proto.WriteRequest{
+		TableName:       TEST_TABLE_NAME,
+		RowKey:          "row1",
+		ColumnFamily:    "cf1",
+		ColumnQualifier: "col1",
+		Value:           []byte("write1"),
+		Timestamp:       timeNow,
+	}
+	_, writeErr := server.Write(ctx, writeRequest)
+
+	if writeErr != nil {
+		t.Fatalf("Failed to write to LevelDB: %v", writeErr)
+	}
+
+	server.Write(ctx, writeRequest)
+
+	readRequest := &proto.ReadRequest{
+		TableName:       TEST_TABLE_NAME,
+		RowKey:          "row1",
+		ColumnFamily:    "cf1",
+		ColumnQualifier: "col1",
+		ReturnVersion:   1,
+	}
+
+	readResponse, readErr := server.Read(context.Background(), readRequest)
+	if readErr != nil {
+		t.Fatalf("Failed to read from LevelDB: %v", readErr)
+	}
+
+	if len(readResponse.Values) != 1 {
+		t.Fatalf("Read returned wrong number of values, expected %d, got %d", 1, len(readResponse.Values))
+	}
+
+	deleteReq := &ipb.DeleteTableInternalRequest{
+		TableName: TEST_TABLE_NAME,
+	}
+
+	_, err = server.DeleteTable(ctx, deleteReq)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("delete failed"))
+	}
+
+	readResponse, readErr = server.Read(context.Background(), readRequest)
+	if readErr == nil {
+		t.Fatalf("Delete but still can read")
+	}
+
+	_, exist := server.Tables[TEST_TABLE_NAME]
+	if exist {
+		log.Fatal(fmt.Sprintf("delete didn't remove table from the map"))
+	}
 }
 
 func TestTabletSingleWrite(t *testing.T) {
@@ -77,9 +177,6 @@ func TestTabletSingleWrite(t *testing.T) {
 		Timestamp:       timeNow,
 	}
 	_, writeErr := server.Write(ctx, writeRequest)
-	if writeErr != nil {
-		return
-	}
 
 	if writeErr != nil {
 		t.Fatalf("Failed to write to LevelDB: %v", writeErr)

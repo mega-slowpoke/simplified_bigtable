@@ -26,15 +26,13 @@ func main() {
 	setupOptions := tablet.SetupOptions{
 		TabletAddress: *tabletAddress,
 		MasterAddress: *masterAddress,
-		MaxShardSize:  *maxShardSize,
+		MaxTableSize:  *maxShardSize,
 	}
 	tabletService, err := tablet.NewTabletService(setupOptions)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// 这里简单使用net/http包监听一个端口作为示例，实际中可能需要换成grpc等合适的服务框架来处理业务逻辑
-	// 定义一个简单的HTTP处理函数，你可以替换为真实的服务处理逻辑
 	host, port, err := net.SplitHostPort(tabletService.TabletAddress)
 	if err != nil {
 		log.Fatal("Invalid tablet address format:", err)

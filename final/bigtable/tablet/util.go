@@ -2,6 +2,7 @@ package tablet
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -9,7 +10,12 @@ import (
 type SetupOptions struct {
 	TabletAddress string
 	MasterAddress string
-	MaxShardSize  int
+	MaxTableSize  int
+}
+
+func GetFilePath(address string, tableName string) string {
+	address = strings.Replace(address, ":", "_", -1)
+	return filepath.Join(address, tableName)
 }
 
 func BuildKey(rowKey, columnFamily, columnQualifier string, timestamp int64) string {
