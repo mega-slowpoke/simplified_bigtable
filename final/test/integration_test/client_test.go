@@ -25,4 +25,22 @@ func TestClientCreateTable(t *testing.T) {
 	if err != nil {
 		log.Fatal(fmt.Printf("Failed to create table: %v", err))
 	}
+
+	log.Printf("Created table succeed: %v", tableName)
+}
+
+func TestClientDeleteTable(t *testing.T) {
+	masterAddress := "localhost:9090"
+
+	client, err := bigtable.NewClient(masterAddress)
+	if err != nil {
+		log.Fatal(fmt.Printf("Failed to create client: %v", err))
+	}
+
+	tableName := "users"
+
+	err = client.DeleteTable(tableName)
+	if err != nil {
+		log.Fatal(fmt.Printf("Failed to delete table: %v", err))
+	}
 }
