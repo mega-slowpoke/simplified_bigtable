@@ -35,15 +35,17 @@ message ShardResponse {
 
 message ShardFinishNotificationRequest {
   string table_name = 1;
-  TabletRowRange source = 2; // include info about row range before and after sharding
-  TabletRowRange target = 3;
+  string source = 2;
+  string target = 3;
+//  TabletRowRange source = 2; // include info about row range before and after sharding
+//  TabletRowRange target = 3;
 }
 
-message TabletRowRange {
-  string tablet_address = 1;
-  string row_from = 2;
-  string row_to = 3;
-}
+//message TabletRowRange {
+//  string tablet_address = 1;
+//  string row_from = 2;
+//  string row_to = 3;
+//}
 
 message ShardFinishNotificationResponse {}
 

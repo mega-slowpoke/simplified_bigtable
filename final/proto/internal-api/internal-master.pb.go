@@ -285,9 +285,9 @@ type ShardFinishNotificationRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	TableName string          `protobuf:"bytes,1,opt,name=table_name,json=tableName,proto3" json:"table_name,omitempty"`
-	Source    *TabletRowRange `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"` // include info about row range before and after sharding
-	Target    *TabletRowRange `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	TableName string `protobuf:"bytes,1,opt,name=table_name,json=tableName,proto3" json:"table_name,omitempty"`
+	Source    string `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	Target    string `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
 }
 
 func (x *ShardFinishNotificationRequest) Reset() {
@@ -327,77 +327,16 @@ func (x *ShardFinishNotificationRequest) GetTableName() string {
 	return ""
 }
 
-func (x *ShardFinishNotificationRequest) GetSource() *TabletRowRange {
+func (x *ShardFinishNotificationRequest) GetSource() string {
 	if x != nil {
 		return x.Source
 	}
-	return nil
+	return ""
 }
 
-func (x *ShardFinishNotificationRequest) GetTarget() *TabletRowRange {
+func (x *ShardFinishNotificationRequest) GetTarget() string {
 	if x != nil {
 		return x.Target
-	}
-	return nil
-}
-
-type TabletRowRange struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	TabletAddress string `protobuf:"bytes,1,opt,name=tablet_address,json=tabletAddress,proto3" json:"tablet_address,omitempty"`
-	RowFrom       string `protobuf:"bytes,2,opt,name=row_from,json=rowFrom,proto3" json:"row_from,omitempty"`
-	RowTo         string `protobuf:"bytes,3,opt,name=row_to,json=rowTo,proto3" json:"row_to,omitempty"`
-}
-
-func (x *TabletRowRange) Reset() {
-	*x = TabletRowRange{}
-	mi := &file_internal_master_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TabletRowRange) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TabletRowRange) ProtoMessage() {}
-
-func (x *TabletRowRange) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_master_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TabletRowRange.ProtoReflect.Descriptor instead.
-func (*TabletRowRange) Descriptor() ([]byte, []int) {
-	return file_internal_master_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *TabletRowRange) GetTabletAddress() string {
-	if x != nil {
-		return x.TabletAddress
-	}
-	return ""
-}
-
-func (x *TabletRowRange) GetRowFrom() string {
-	if x != nil {
-		return x.RowFrom
-	}
-	return ""
-}
-
-func (x *TabletRowRange) GetRowTo() string {
-	if x != nil {
-		return x.RowTo
 	}
 	return ""
 }
@@ -410,7 +349,7 @@ type ShardFinishNotificationResponse struct {
 
 func (x *ShardFinishNotificationResponse) Reset() {
 	*x = ShardFinishNotificationResponse{}
-	mi := &file_internal_master_proto_msgTypes[8]
+	mi := &file_internal_master_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -422,7 +361,7 @@ func (x *ShardFinishNotificationResponse) String() string {
 func (*ShardFinishNotificationResponse) ProtoMessage() {}
 
 func (x *ShardFinishNotificationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_master_proto_msgTypes[8]
+	mi := &file_internal_master_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -435,7 +374,7 @@ func (x *ShardFinishNotificationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShardFinishNotificationResponse.ProtoReflect.Descriptor instead.
 func (*ShardFinishNotificationResponse) Descriptor() ([]byte, []int) {
-	return file_internal_master_proto_rawDescGZIP(), []int{8}
+	return file_internal_master_proto_rawDescGZIP(), []int{7}
 }
 
 var File_internal_master_proto protoreflect.FileDescriptor
@@ -464,24 +403,14 @@ var file_internal_master_proto_rawDesc = []byte{
 	0x12, 0x32, 0x0a, 0x15, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x74, 0x61, 0x62, 0x6c, 0x65,
 	0x74, 0x5f, 0x61, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
 	0x13, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x74, 0x41, 0x64, 0x64,
-	0x72, 0x65, 0x73, 0x73, 0x22, 0xa3, 0x01, 0x0a, 0x1e, 0x53, 0x68, 0x61, 0x72, 0x64, 0x46, 0x69,
-	0x6e, 0x69, 0x73, 0x68, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1d, 0x0a, 0x0a, 0x74, 0x61, 0x62, 0x6c, 0x65,
-	0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x74, 0x61, 0x62,
-	0x6c, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x30, 0x0a, 0x06, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
-	0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x62, 0x69, 0x67, 0x74, 0x61, 0x62, 0x6c,
-	0x65, 0x2e, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x74, 0x52, 0x6f, 0x77, 0x52, 0x61, 0x6e, 0x67, 0x65,
-	0x52, 0x06, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x30, 0x0a, 0x06, 0x74, 0x61, 0x72, 0x67,
-	0x65, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x62, 0x69, 0x67, 0x74, 0x61,
-	0x62, 0x6c, 0x65, 0x2e, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x74, 0x52, 0x6f, 0x77, 0x52, 0x61, 0x6e,
-	0x67, 0x65, 0x52, 0x06, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x22, 0x69, 0x0a, 0x0e, 0x54, 0x61,
-	0x62, 0x6c, 0x65, 0x74, 0x52, 0x6f, 0x77, 0x52, 0x61, 0x6e, 0x67, 0x65, 0x12, 0x25, 0x0a, 0x0e,
-	0x74, 0x61, 0x62, 0x6c, 0x65, 0x74, 0x5f, 0x61, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x74, 0x41, 0x64, 0x64, 0x72,
-	0x65, 0x73, 0x73, 0x12, 0x19, 0x0a, 0x08, 0x72, 0x6f, 0x77, 0x5f, 0x66, 0x72, 0x6f, 0x6d, 0x18,
-	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x72, 0x6f, 0x77, 0x46, 0x72, 0x6f, 0x6d, 0x12, 0x15,
-	0x0a, 0x06, 0x72, 0x6f, 0x77, 0x5f, 0x74, 0x6f, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05,
-	0x72, 0x6f, 0x77, 0x54, 0x6f, 0x22, 0x21, 0x0a, 0x1f, 0x53, 0x68, 0x61, 0x72, 0x64, 0x46, 0x69,
+	0x72, 0x65, 0x73, 0x73, 0x22, 0x6f, 0x0a, 0x1e, 0x53, 0x68, 0x61, 0x72, 0x64, 0x46, 0x69, 0x6e,
+	0x69, 0x73, 0x68, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1d, 0x0a, 0x0a, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x5f,
+	0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x74, 0x61, 0x62, 0x6c,
+	0x65, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x16, 0x0a,
+	0x06, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74,
+	0x61, 0x72, 0x67, 0x65, 0x74, 0x22, 0x21, 0x0a, 0x1f, 0x53, 0x68, 0x61, 0x72, 0x64, 0x46, 0x69,
 	0x6e, 0x69, 0x73, 0x68, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e,
 	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xfc, 0x02, 0x0a, 0x15, 0x4d, 0x61, 0x73,
 	0x74, 0x65, 0x72, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x53, 0x65, 0x72, 0x76, 0x69,
@@ -523,7 +452,7 @@ func file_internal_master_proto_rawDescGZIP() []byte {
 	return file_internal_master_proto_rawDescData
 }
 
-var file_internal_master_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_internal_master_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_internal_master_proto_goTypes = []any{
 	(*RegisterTabletRequest)(nil),           // 0: bigtable.RegisterTabletRequest
 	(*RegisterTabletResponse)(nil),          // 1: bigtable.RegisterTabletResponse
@@ -532,25 +461,22 @@ var file_internal_master_proto_goTypes = []any{
 	(*ShardRequest)(nil),                    // 4: bigtable.ShardRequest
 	(*ShardResponse)(nil),                   // 5: bigtable.ShardResponse
 	(*ShardFinishNotificationRequest)(nil),  // 6: bigtable.ShardFinishNotificationRequest
-	(*TabletRowRange)(nil),                  // 7: bigtable.TabletRowRange
-	(*ShardFinishNotificationResponse)(nil), // 8: bigtable.ShardFinishNotificationResponse
+	(*ShardFinishNotificationResponse)(nil), // 7: bigtable.ShardFinishNotificationResponse
 }
 var file_internal_master_proto_depIdxs = []int32{
-	7, // 0: bigtable.ShardFinishNotificationRequest.source:type_name -> bigtable.TabletRowRange
-	7, // 1: bigtable.ShardFinishNotificationRequest.target:type_name -> bigtable.TabletRowRange
-	0, // 2: bigtable.MasterInternalService.RegisterTablet:input_type -> bigtable.RegisterTabletRequest
-	2, // 3: bigtable.MasterInternalService.UnregisterTablet:input_type -> bigtable.UnregisterTabletRequest
-	4, // 4: bigtable.MasterInternalService.NotifyShardRequest:input_type -> bigtable.ShardRequest
-	6, // 5: bigtable.MasterInternalService.NotifyShardFinish:input_type -> bigtable.ShardFinishNotificationRequest
-	1, // 6: bigtable.MasterInternalService.RegisterTablet:output_type -> bigtable.RegisterTabletResponse
-	3, // 7: bigtable.MasterInternalService.UnregisterTablet:output_type -> bigtable.UnregisterTabletResponse
-	5, // 8: bigtable.MasterInternalService.NotifyShardRequest:output_type -> bigtable.ShardResponse
-	8, // 9: bigtable.MasterInternalService.NotifyShardFinish:output_type -> bigtable.ShardFinishNotificationResponse
-	6, // [6:10] is the sub-list for method output_type
-	2, // [2:6] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0, // 0: bigtable.MasterInternalService.RegisterTablet:input_type -> bigtable.RegisterTabletRequest
+	2, // 1: bigtable.MasterInternalService.UnregisterTablet:input_type -> bigtable.UnregisterTabletRequest
+	4, // 2: bigtable.MasterInternalService.NotifyShardRequest:input_type -> bigtable.ShardRequest
+	6, // 3: bigtable.MasterInternalService.NotifyShardFinish:input_type -> bigtable.ShardFinishNotificationRequest
+	1, // 4: bigtable.MasterInternalService.RegisterTablet:output_type -> bigtable.RegisterTabletResponse
+	3, // 5: bigtable.MasterInternalService.UnregisterTablet:output_type -> bigtable.UnregisterTabletResponse
+	5, // 6: bigtable.MasterInternalService.NotifyShardRequest:output_type -> bigtable.ShardResponse
+	7, // 7: bigtable.MasterInternalService.NotifyShardFinish:output_type -> bigtable.ShardFinishNotificationResponse
+	4, // [4:8] is the sub-list for method output_type
+	0, // [0:4] is the sub-list for method input_type
+	0, // [0:0] is the sub-list for extension type_name
+	0, // [0:0] is the sub-list for extension extendee
+	0, // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_internal_master_proto_init() }
@@ -564,7 +490,7 @@ func file_internal_master_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_internal_master_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

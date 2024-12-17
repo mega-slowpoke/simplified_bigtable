@@ -12,8 +12,7 @@ import (
 	"time"
 )
 
-//-------------------------- Tablet As a grpc service consumer ------------------------------
-
+// -------------------------- Tablet As a grpc service consumer ------------------------------
 func (s *TabletServiceServer) PeriodicallyCheckMaxSize(ctx context.Context, period int) {
 	for {
 		select {
@@ -59,7 +58,12 @@ func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
 
 		err = s.notifyTabletServerForShardUpdate(tableName, response.TargetTabletAddress)
 		if err != nil {
-			return err
+			return status.Errorf(codes.Internal, "failed to notify tablet server for shard update: %v", err)
+		}
+
+		err = s.notifyMasterShardFinished(context.Background(), tableName, response.TargetTabletAddress)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to notify master that shard is done: %v", err)
 		}
 
 		//for tableName := range s.TablesRows {
@@ -86,22 +90,11 @@ func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
 }
 
 // ShardFinishRequest notify master server after finishing shard
-func (s *TabletServiceServer) notifyMasterShardFinished(ctx context.Context, tableName string, targetTabletAddress string, rowFromPre string, rowToPre string, rowFromPost string, rowToPost string) error {
-	source := &ipb.TabletRowRange{
-		TabletAddress: s.TabletAddress,
-		RowFrom:       rowFromPre,
-		RowTo:         rowToPre,
-	}
-	target := &ipb.TabletRowRange{
-		TabletAddress: targetTabletAddress,
-		RowFrom:       rowFromPost,
-		RowTo:         rowToPost,
-	}
-
+func (s *TabletServiceServer) notifyMasterShardFinished(ctx context.Context, tableName string, targetTabletAddress string) error {
 	req := &ipb.ShardFinishNotificationRequest{
 		TableName: tableName,
-		Source:    source,
-		Target:    target,
+		Source:    s.TabletAddress,
+		Target:    targetTabletAddress,
 	}
 
 	client := *s.MasterClient
