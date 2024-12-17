@@ -51,10 +51,8 @@ type TabletServiceServer struct {
 	MasterConn    *grpc.ClientConn
 	MasterClient  *ipb.MasterInternalServiceClient
 	MaxTableCnt   int
-	TablesRows    map[string][]string
+	TablesRows    map[string]map[string]struct{}
 	TablesColumns map[string]map[string][]string
-	TablesInfo    map[string]map[string]string
-	TableList     []string
 }
 
 func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
@@ -74,10 +72,8 @@ func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
 		MasterConn:    conn,
 		MasterClient:  &masterClient,
 		MaxTableCnt:   opt.MaxTableSize,
-		TablesRows:    make(map[string][]string),
+		TablesRows:    make(map[string]map[string]struct{}),
 		TablesColumns: make(map[string]map[string][]string),
-		TablesInfo:    make(map[string]map[string]string),
-		TableList:     make([]string, 0),
 	}, nil
 }
 

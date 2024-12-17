@@ -1,7 +1,9 @@
 package tablet
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	proto "final/proto/external-api"
 	ipb "final/proto/internal-api"
 	"fmt"
@@ -34,7 +36,23 @@ func (s *TabletServiceServer) CreateTable(ctx context.Context, req *ipb.CreateTa
 			Success: false,
 		}, nil
 	}
+
+	// update table Map
 	s.Tables[tableName] = db
+
+	// update table columns info
+	s.TablesColumns[tableName] = make(map[string][]string)
+	columnFamilyMap := s.TablesColumns[tableName]
+	for _, columnFamily := range req.ColumnFamilies {
+		columnFamilyMap[columnFamily.FamilyName] = columnFamily.Columns
+	}
+
+	//  persist metadata row so they can be recovered when the server crashes
+	err = WriteMetaDataToPersistent("column", columnFamilyMap, db)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ipb.CreateTableInternalResponse{
 		Success: true,
 	}, nil
@@ -163,6 +181,18 @@ func (s *TabletServiceServer) Write(ctx context.Context, req *proto.WriteRequest
 		return &proto.WriteResponse{Success: false}, err
 	}
 
+	// update row info: persist metadata row so they can be recovered when the server crashes
+	rowSet := s.TablesRows[tableName]
+	_, exist := rowSet[req.RowKey]
+	if !exist {
+		// if this row doesn't exist before, add to the set and update persistent
+		rowSet[req.RowKey] = struct{}{}
+		err = WriteMetaDataToPersistent("row", rowSet, tableFile)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
 	return &proto.WriteResponse{Success: true}, nil
 }
 
@@ -197,5 +227,27 @@ func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteReque
 		}
 	}
 
+	// update row info: persist metadata row so they can be recovered when the server crashes
+	rowSet := s.TablesRows[tableName]
+	delete(rowSet, req.RowKey)
+	err := WriteMetaDataToPersistent("row", rowSet, tableFile)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
 	return &proto.DeleteResponse{Success: true}, nil
+}
+
+func WriteMetaDataToPersistent(metadataType string, data interface{}, db *leveldb.DB) error {
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+	if err := encoder.Encode(data); err != nil {
+		log.Fatal(fmt.Sprintf("Encode metadata %v failed: %v", metadataType, err))
+	}
+
+	if err := db.Put([]byte(fmt.Sprintf("meta_%s", metadataType)), buf.Bytes(), nil); err != nil {
+		log.Fatal(fmt.Sprintf("Persist %s to LevelDB failed: %v", metadataType, err))
+	}
+
+	return nil
 }
