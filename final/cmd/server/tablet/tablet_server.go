@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
 	tablet "final/bigtable/tablet"
 	epb "final/proto/external-api"
 	ipb "final/proto/internal-api"
 	"flag"
-	"fmt"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -16,7 +20,7 @@ func main() {
 	tabletAddress := flag.String("tablet_address", "", "Tablet service address")
 	masterAddress := flag.String("master_address", "", "Master service address")
 	maxTableCnt := flag.Int("max_table_cnt", 0, "Max table count")
-	testMode := flag.Bool("test_mode", false, "Test mode")
+	checkMaxCntPeriod := flag.Int("check_max_period", 100, "Microsecond, Modify this if you want the tablet to check if tables it takes care of are greater than max cnt more frequently")
 	flag.Parse()
 
 	// check if parameters are legal
@@ -28,7 +32,6 @@ func main() {
 		TabletAddress: *tabletAddress,
 		MasterAddress: *masterAddress,
 		MaxTableSize:  *maxTableCnt,
-		TestMode:      *testMode,
 	}
 
 	tabletService, err := tablet.NewTabletService(setupOptions)
@@ -51,18 +54,28 @@ func main() {
 	epb.RegisterTabletExternalServiceServer(server, tabletService)
 	ipb.RegisterTabletInternalServiceServer(server, tabletService)
 
-	// tell master a new tablet is online
-	err = tabletService.RegisterMyself()
-	if err != nil {
-		log.Fatal(fmt.Sprintf("Fail to register %v, %v", tabletAddress, err))
-	}
+	// Graceful shutdown logic
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	if err = server.Serve(lis); err != nil {
-		log.Fatal("Failed to serve:", err)
-	}
+	// Run the server in a goroutine
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve: %v", err)
+		}
+	}()
 
-	// check out of size periodically
-	//go
+	go tabletService.PeriodicallyCheckMaxSize(ctx, *checkMaxCntPeriod)
 
-	//
+	// Wait for termination signal
+	<-ctx.Done()
+	log.Println("Shutting down server gracefully...")
+
+	//  clean up
+	server.GracefulStop()
+	tabletService.UnRegisterMyself()
+	tabletService.CloseMasterConnection()
+	tabletService.CloseAllTables()
+
+	logrus.Println("Server exited successfully.")
 }

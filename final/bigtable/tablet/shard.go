@@ -5,11 +5,27 @@ import (
 	ipb "final/proto/internal-api"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"log"
+	"time"
 )
 
 //-------------------------- Tablet As a grpc service consumer ------------------------------
+
+func (s *TabletServiceServer) PeriodicallyCheckMaxSize(ctx context.Context, period int) {
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Stopping PeriodicallyCheckMaxSize...")
+			return
+		default:
+			time.Sleep(time.Microsecond * time.Duration(period))
+			s.checkAndNotifyMasterForShard()
+		}
+	}
+}
 
 // checkAndNotifyMasterForShard if the size of any table rows is greater than max size, notify the master to issue a shard command
 // Problem: what if this table is being modified during this time
@@ -41,7 +57,7 @@ func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
 			log.Printf("failed to notify master for shard request: %v", err)
 		}
 
-		err = s.notifyTabletServerForShardUpdate(tableName, []string{}, response.TargetTabletAddress)
+		err = s.notifyTabletServerForShardUpdate(tableName, response.TargetTabletAddress)
 		if err != nil {
 			return err
 		}
@@ -98,20 +114,12 @@ func (s *TabletServiceServer) notifyMasterShardFinished(ctx context.Context, tab
 }
 
 // UpdateShardRequest
-func (s *TabletServiceServer) notifyTabletServerForShardUpdate(tableName string, shardRowKeySet []string, targetTabletAddress string) error {
-	tableColumns := make(map[string]*ipb.Columns)
-	for columnFamily, columns := range s.TablesColumns[tableName] {
-		tableColumns[columnFamily] = &ipb.Columns{ColumnNames: columns}
-	}
-
+func (s *TabletServiceServer) notifyTabletServerForShardUpdate(tableName string, targetTabletAddress string) error {
 	req := &ipb.UpdateShardRequest{
-		TableName: tableName,
-		//TableRows:    shardRowKeySet,
-		TableColumns: tableColumns,
-		//TableInfo:    s.TablesInfo,
+		TableName:           tableName,
+		SourceTabletAddress: s.TabletAddress,
 	}
 
-	//
 	conn, err := grpc.NewClient(targetTabletAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("did not connect: %v", err)
@@ -119,41 +127,41 @@ func (s *TabletServiceServer) notifyTabletServerForShardUpdate(tableName string,
 	defer conn.Close()
 
 	client := ipb.NewTabletInternalServiceClient(conn)
-	_, err = client.UpdateShard(context.Background(), req)
+	response, err := client.UpdateShard(context.Background(), req)
 	if err != nil {
-		return fmt.Errorf("failed to notify tablet server for shard update: %v", err)
+		return status.Errorf(codes.Internal, "%v", err)
 	}
+
+	if response.Success {
+		// TODO: (Test This) shard is done, we need to delete the table path in the original server address
+		// IMPORTANT: it has to be deleted after the migration is done, otherwise the migration cannot read the file
+		deleteReq := &ipb.DeleteTableInternalRequest{
+			TableName: tableName,
+		}
+		_, err = s.DeleteTable(context.Background(), deleteReq)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to delete table: %v", err)
+		}
+
+	}
+
 	return nil
 }
 
 // ------------------------ -- Tablet As a grpc service provider ------------------------------
 func (s *TabletServiceServer) UpdateShard(ctx context.Context, req *ipb.UpdateShardRequest) (*ipb.UpdateShardResponse, error) {
 	tableName := req.TableName
-	tableRows := req.TableRows
-	tableColumns := req.TableColumns
-	tableInfo := req.TableInfo
+	sourceTabletAddress := req.SourceTabletAddress
 
-	// move metadata
-	// add tableName to table list
-	if !contains(s.TableList, tableName) {
-		s.TableList = append(s.TableList, tableName)
+	// migrate
+	err := s.MigrateTableToSelf(sourceTabletAddress, tableName)
+	if err != nil {
+		return &ipb.UpdateShardResponse{
+			Success: false,
+		}, err
 	}
 
-	// add row Keys to the tableRows
-	s.TablesRows[tableName] = []string{}
-	for _, rowKey := range tableRows {
-		s.TablesRows[tableName] = append(s.TablesRows[tableName], rowKey)
-	}
-
-	for columnFamily, columns := range tableColumns {
-		s.TablesColumns[tableName][columnFamily] = columns.ColumnNames
-	}
-
-	s.TablesInfo[tableName] = tableInfo
-
-	// TODO:  metadata_for_col_index(columnsJSON)
-
-	// move storage data
-
-	return &ipb.UpdateShardResponse{}, nil
+	return &ipb.UpdateShardResponse{
+		Success: true,
+	}, nil
 }

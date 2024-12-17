@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TabletInternalService_CreateTable_FullMethodName = "/bigtable.TabletInternalService/CreateTable"
-	TabletInternalService_DeleteTable_FullMethodName = "/bigtable.TabletInternalService/DeleteTable"
-	TabletInternalService_Heartbeat_FullMethodName   = "/bigtable.TabletInternalService/Heartbeat"
-	TabletInternalService_UpdateShard_FullMethodName = "/bigtable.TabletInternalService/UpdateShard"
+	TabletInternalService_CreateTable_FullMethodName          = "/bigtable.TabletInternalService/CreateTable"
+	TabletInternalService_DeleteTable_FullMethodName          = "/bigtable.TabletInternalService/DeleteTable"
+	TabletInternalService_Heartbeat_FullMethodName            = "/bigtable.TabletInternalService/Heartbeat"
+	TabletInternalService_UpdateShard_FullMethodName          = "/bigtable.TabletInternalService/UpdateShard"
+	TabletInternalService_RecoverCrashedTablet_FullMethodName = "/bigtable.TabletInternalService/RecoverCrashedTablet"
 )
 
 // TabletInternalServiceClient is the client API for TabletInternalService service.
@@ -36,6 +37,8 @@ type TabletInternalServiceClient interface {
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	// UpdateShard
 	UpdateShard(ctx context.Context, in *UpdateShardRequest, opts ...grpc.CallOption) (*UpdateShardResponse, error)
+	// recover
+	RecoverCrashedTablet(ctx context.Context, in *RecoveryRequest, opts ...grpc.CallOption) (*RecoveryResponse, error)
 }
 
 type tabletInternalServiceClient struct {
@@ -86,6 +89,16 @@ func (c *tabletInternalServiceClient) UpdateShard(ctx context.Context, in *Updat
 	return out, nil
 }
 
+func (c *tabletInternalServiceClient) RecoverCrashedTablet(ctx context.Context, in *RecoveryRequest, opts ...grpc.CallOption) (*RecoveryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecoveryResponse)
+	err := c.cc.Invoke(ctx, TabletInternalService_RecoverCrashedTablet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TabletInternalServiceServer is the server API for TabletInternalService service.
 // All implementations must embed UnimplementedTabletInternalServiceServer
 // for forward compatibility.
@@ -97,6 +110,8 @@ type TabletInternalServiceServer interface {
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	// UpdateShard
 	UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error)
+	// recover
+	RecoverCrashedTablet(context.Context, *RecoveryRequest) (*RecoveryResponse, error)
 	mustEmbedUnimplementedTabletInternalServiceServer()
 }
 
@@ -118,6 +133,9 @@ func (UnimplementedTabletInternalServiceServer) Heartbeat(context.Context, *Hear
 }
 func (UnimplementedTabletInternalServiceServer) UpdateShard(context.Context, *UpdateShardRequest) (*UpdateShardResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateShard not implemented")
+}
+func (UnimplementedTabletInternalServiceServer) RecoverCrashedTablet(context.Context, *RecoveryRequest) (*RecoveryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RecoverCrashedTablet not implemented")
 }
 func (UnimplementedTabletInternalServiceServer) mustEmbedUnimplementedTabletInternalServiceServer() {}
 func (UnimplementedTabletInternalServiceServer) testEmbeddedByValue()                               {}
@@ -212,6 +230,24 @@ func _TabletInternalService_UpdateShard_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TabletInternalService_RecoverCrashedTablet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecoveryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TabletInternalServiceServer).RecoverCrashedTablet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TabletInternalService_RecoverCrashedTablet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletInternalServiceServer).RecoverCrashedTablet(ctx, req.(*RecoveryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TabletInternalService_ServiceDesc is the grpc.ServiceDesc for TabletInternalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -234,6 +270,10 @@ var TabletInternalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateShard",
 			Handler:    _TabletInternalService_UpdateShard_Handler,
+		},
+		{
+			MethodName: "RecoverCrashedTablet",
+			Handler:    _TabletInternalService_RecoverCrashedTablet_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

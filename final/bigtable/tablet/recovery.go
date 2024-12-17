@@ -2,7 +2,9 @@ package tablet
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
+	ipb "final/proto/internal-api"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -13,7 +15,22 @@ import (
 	"path/filepath"
 )
 
-func (s *TabletServiceServer) recover(crashedServerAddress string, tableName string) error {
+func (s *TabletServiceServer) RecoverCrashedTablet(ctx context.Context, req *ipb.RecoveryRequest) (*ipb.RecoveryResponse, error) {
+	crashedTabletAddress := req.CrashedTabletAddress
+	tableName := req.TableName
+	err := s.MigrateTableToSelf(crashedTabletAddress, tableName)
+	if err != nil {
+		return &ipb.RecoveryResponse{
+			Success: false,
+		}, status.Error(codes.Internal, err.Error())
+	}
+
+	return &ipb.RecoveryResponse{
+		Success: true,
+	}, nil
+}
+
+func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tableName string) error {
 	// Step1: create table if not exist
 	dbPath := GetFilePath(s.TabletAddress, tableName)
 	db, err := leveldb.OpenFile(dbPath, nil)
@@ -22,8 +39,8 @@ func (s *TabletServiceServer) recover(crashedServerAddress string, tableName str
 	}
 	s.Tables[tableName] = db
 
-	// move data (table contents and metadata) from "crashedServerAddress/tableName" to "s.TabletAddress/tableName"
-	err = s.recoverData(crashedServerAddress, tableName)
+	// move data (table contents and metadata) from "sourceServerAddress/tableName" to "s.TabletAddress/tableName"
+	err = s.recoverData(sourceServerAddress, tableName)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to recover actual data: %v", err)
 	}
@@ -39,7 +56,7 @@ func (s *TabletServiceServer) recover(crashedServerAddress string, tableName str
 		return status.Errorf(codes.Internal, "failed to rebuild rows metadata: %v", err)
 	}
 
-	logrus.Info(fmt.Sprintf("Recovery completed successfully for: %s - %s, data is moved to %s", crashedServerAddress, tableName, s.TabletAddress))
+	logrus.Info(fmt.Sprintf("Recovery completed successfully for: %s - %s, data is moved to %s", sourceServerAddress, tableName, s.TabletAddress))
 	return nil
 }
 
