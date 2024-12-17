@@ -331,6 +331,7 @@ func (ms *MasterServer) NotifyShardRequest(ctx context.Context, req *ipb.ShardRe
 	}, nil
 }
 
+// NotifyShardFinish handles the completion of a shard (tablet transfer)
 func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFinishNotificationRequest) (*ipb.ShardFinishNotificationResponse, error) {
 	ms.state.mu.Lock()
 	defer ms.state.mu.Unlock()
@@ -342,58 +343,112 @@ func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFin
 		return nil, errors.New(msg)
 	}
 
-	// Update the tablets with the new shard information
-	originalTablet := &Tablet{
-		StartRow:     req.Source.RowFrom,
-		EndRow:       req.Source.RowTo,
-		TabletServer: req.Source.TabletAddress,
-		Sharded:      true,
+	if len(table.Tablets) != 1 {
+		msg := fmt.Sprintf("ShardFinishNotification: Table '%s' has %d tablets, expected exactly 1.", req.TableName, len(table.Tablets))
+		log.Println(msg)
+		return nil, errors.New(msg)
 	}
 
-	newTablet := &Tablet{
-		TableName:    req.TableName,
-		StartRow:     req.Target.RowFrom,
-		EndRow:       req.Target.RowTo,
-		TabletServer: req.Target.TabletAddress,
-		Sharded:      false,
+	tablet := table.Tablets[0]
+
+	if tablet.TabletServer != req.Source {
+		msg := fmt.Sprintf("ShardFinishNotification: Tablet server mismatch for table '%s'. Expected source '%s', but got '%s'.",
+			req.TableName, req.Source, tablet.TabletServer)
+		log.Println(msg)
+		return nil, errors.New(msg)
 	}
 
-	// Verify that the original tablet exists
-	found := false
-	for _, tablet := range table.Tablets {
-		if tablet.TabletServer == originalTablet.TabletServer &&
-			tablet.StartRow == originalTablet.StartRow &&
-			tablet.EndRow == originalTablet.EndRow {
-			// Update the original tablet's Sharded status
-			tablet.Sharded = originalTablet.Sharded
-			found = true
-			break
+	tablet.TabletServer = req.Target
+
+	if sourceServerInfo, exists := ms.state.TabletServers[req.Source]; exists {
+		if sourceServerInfo.TabletCount > 0 {
+			sourceServerInfo.TabletCount--
+		} else {
+			log.Printf("ShardFinishNotification: Source tablet server '%s' has inconsistent TabletCount.", req.Source)
 		}
-	}
-
-	if !found {
-		msg := fmt.Sprintf("ShardFinishNotification: Original tablet not found for table '%s'.", req.TableName)
-		log.Println(msg)
-		return nil, errors.New(msg)
-	}
-
-	// Add the new shard tablet
-	table.Tablets = append(table.Tablets, newTablet)
-
-	// Increment TabletCount for the new shard's tablet server
-	if serverInfo, exists := ms.state.TabletServers[newTablet.TabletServer]; exists {
-		serverInfo.TabletCount++
 	} else {
-		msg := fmt.Sprintf("ShardFinishNotification: New shard tablet server '%s' is not registered.", newTablet.TabletServer)
+		msg := fmt.Sprintf("ShardFinishNotification: Source tablet server '%s' is not registered.", req.Source)
 		log.Println(msg)
 		return nil, errors.New(msg)
 	}
 
-	log.Printf("ShardFinishNotification: Sharding completed for table '%s'. New shard on server '%s' with range [%s, %s).",
-		req.TableName, newTablet.TabletServer, newTablet.StartRow, newTablet.EndRow)
+	if targetServerInfo, exists := ms.state.TabletServers[req.Target]; exists {
+		targetServerInfo.TabletCount++
+	} else {
+		msg := fmt.Sprintf("ShardFinishNotification: Target tablet server '%s' is not registered.", req.Target)
+		log.Println(msg)
+		return nil, errors.New(msg)
+	}
+
+	log.Printf("ShardFinishNotification: Successfully transferred tablet of table '%s' from server '%s' to server '%s'.",
+		req.TableName, req.Source, req.Target)
 
 	return &ipb.ShardFinishNotificationResponse{}, nil
 }
+
+// func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFinishNotificationRequest) (*ipb.ShardFinishNotificationResponse, error) {
+// 	ms.state.mu.Lock()
+// 	defer ms.state.mu.Unlock()
+
+// 	table, exists := ms.state.Tables[req.TableName]
+// 	if !exists {
+// 		msg := fmt.Sprintf("ShardFinishNotification: Table '%s' does not exist.", req.TableName)
+// 		log.Println(msg)
+// 		return nil, errors.New(msg)
+// 	}
+
+// 	// Update the tablets with the new shard information
+// 	originalTablet := &Tablet{
+// 		StartRow:     "",
+// 		EndRow:       "",
+// 		TabletServer: req.Source,
+// 		Sharded:      true,
+// 	}
+
+// 	newTablet := &Tablet{
+// 		TableName:    req.TableName,
+// 		StartRow:     "",
+// 		EndRow:       "",
+// 		TabletServer: req.Target,
+// 		Sharded:      false,
+// 	}
+
+// 	// Verify that the original tablet exists
+// 	found := false
+// 	for _, tablet := range table.Tablets {
+// 		if tablet.TabletServer == originalTablet.TabletServer &&
+// 			tablet.StartRow == originalTablet.StartRow &&
+// 			tablet.EndRow == originalTablet.EndRow {
+// 			// Update the original tablet's Sharded status
+// 			tablet.Sharded = originalTablet.Sharded
+// 			found = true
+// 			break
+// 		}
+// 	}
+
+// 	if !found {
+// 		msg := fmt.Sprintf("ShardFinishNotification: Original tablet not found for table '%s'.", req.TableName)
+// 		log.Println(msg)
+// 		return nil, errors.New(msg)
+// 	}
+
+// 	// Add the new shard tablet
+// 	table.Tablets = append(table.Tablets, newTablet)
+
+// 	// Increment TabletCount for the new shard's tablet server
+// 	if serverInfo, exists := ms.state.TabletServers[newTablet.TabletServer]; exists {
+// 		serverInfo.TabletCount++
+// 	} else {
+// 		msg := fmt.Sprintf("ShardFinishNotification: New shard tablet server '%s' is not registered.", newTablet.TabletServer)
+// 		log.Println(msg)
+// 		return nil, errors.New(msg)
+// 	}
+
+// 	log.Printf("ShardFinishNotification: Sharding completed for table '%s'. New shard on server '%s' with range [%s, %s).",
+// 		req.TableName, newTablet.TabletServer, newTablet.StartRow, newTablet.EndRow)
+
+// 	return &ipb.ShardFinishNotificationResponse{}, nil
+// }
 
 // MonitorHeartbeats periodically sends Heartbeat RPCs to tablet servers to check their status.
 func (ms *MasterServer) MonitorHeartbeats(interval time.Duration, timeout time.Duration) {
@@ -454,16 +509,48 @@ func (ms *MasterServer) sendHeartbeat(server *TabletServerInfo, timeout time.Dur
 }
 
 // removeTabletServer removes a tablet server from the registry.
+// removeTabletServer removes a tablet server from the registry and handles tablet reassignment
 func (ms *MasterServer) removeTabletServer(address string) {
 	ms.state.mu.Lock()
 	defer ms.state.mu.Unlock()
 
-	if _, exists := ms.state.TabletServers[address]; exists {
-		// TODO: handle reassigning tablets from this server
-
-		delete(ms.state.TabletServers, address)
-		log.Printf("Tablet server '%s' has been removed from the registry.", address)
+	serverInfo, exists := ms.state.TabletServers[address]
+	if !exists {
+		log.Printf("ShardFinishNotification: Tablet server '%s' is not registered.", address)
+		return
 	}
+
+	for _, table := range ms.state.Tables {
+		for _, tablet := range table.Tablets {
+			if tablet.TabletServer == address {
+				// Find a new tablet server
+				newServer, err := ms.getLeastLoadedTabletServerExcluding(address)
+				if err != nil {
+					log.Printf("Failed to find a new tablet server for table '%s': %v", table.Name, err)
+					continue
+				}
+
+				// Calling the RecoverCrashedTablet method for data recovery
+				err = ms.callRecoverCrashedTablet(newServer, table.Name, address)
+				if err != nil {
+					log.Printf("Failed to recover table '%s' on server '%s': %v", table.Name, newServer, err)
+					continue
+				}
+
+				tablet.TabletServer = newServer
+
+				// Update TabletCount
+				ms.state.TabletServers[newServer].TabletCount++
+				serverInfo.TabletCount--
+
+				log.Printf("Transferred tablet of table '%s' from server '%s' to server '%s'.",
+					table.Name, address, newServer)
+			}
+		}
+	}
+
+	delete(ms.state.TabletServers, address)
+	log.Printf("Tablet server '%s' has been removed from the registry.", address)
 }
 
 // Helper Functions
@@ -591,5 +678,35 @@ func (ms *MasterServer) notifyTabletDeleteTable(serverAddress, tableName string)
 	}
 
 	log.Printf("Successfully notified tablet server '%s' to delete table '%s'.", serverAddress, tableName)
+	return nil
+}
+
+// callRecoverCrashedTablet connects to the target tablet server and calls RecoverCrashedTablet
+func (ms *MasterServer) callRecoverCrashedTablet(targetServerAddress, tableName, crashedServerAddress string) error {
+	conn, err := grpc.NewClient(targetServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("failed to connect to target tablet server '%s': %v", targetServerAddress, err)
+	}
+	defer conn.Close()
+
+	client := ipb.NewTabletInternalServiceClient(conn)
+
+	req := &ipb.RecoveryRequest{
+		CrashedTabletAddress: crashedServerAddress,
+		TableName:            tableName,
+	}
+
+	resp, err := client.RecoverCrashedTablet(context.Background(), req)
+	if err != nil {
+		return fmt.Errorf("RecoverCrashedTablet RPC failed on server '%s' for table '%s': %v", targetServerAddress, tableName, err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("RecoverCrashedTablet failed on server '%s' for table '%s'", targetServerAddress, tableName)
+	}
+
+	log.Printf("Successfully recovered table '%s' on server '%s' after source server '%s' crashed.",
+		tableName, targetServerAddress, crashedServerAddress)
+
 	return nil
 }

@@ -1,0 +1,2107 @@
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/bigtable/client.go ---
+package bigtable
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	pb "final/proto/external-api"
+)
+
+// TabletRange represents a range of row keys handled by a specific tablet server.
+type TabletRange struct {
+	StartRow      string
+	EndRow        string
+	ServerAddress string
+}
+
+// TableCache maintains the mapping of row key ranges to tablet servers for a specific table.
+type TableCache struct {
+	ranges []TabletRange
+	mu     sync.RWMutex
+}
+
+// AddRange adds a new TabletRange to the TableCache.
+func (tc *TableCache) AddRange(tr TabletRange) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	tc.ranges = append(tc.ranges, tr)
+	// Sort the ranges by StartRow for efficient searching
+	sort.Slice(tc.ranges, func(i, j int) bool {
+		return strings.Compare(tc.ranges[i].StartRow, tc.ranges[j].StartRow) < 0
+	})
+}
+
+// FindServerByRowKey searches for the tablet server responsible for the given rowKey.
+// It returns the server address and a boolean indicating whether the rowKey was found in the cache.
+func (tc *TableCache) FindServerByRowKey(rowKey string) (string, bool) {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+
+	// Binary search since ranges are sorted
+	index := sort.Search(len(tc.ranges), func(i int) bool {
+		return strings.Compare(tc.ranges[i].StartRow, rowKey) > 0
+	})
+
+	if index > 0 {
+		tr := tc.ranges[index-1]
+		// Check if rowKey falls within this range
+		if (tr.StartRow == "" || strings.Compare(rowKey, tr.StartRow) >= 0) &&
+			(tr.EndRow == "" || strings.Compare(rowKey, tr.EndRow) < 0) {
+			return tr.ServerAddress, true
+		}
+	}
+
+	return "", false
+}
+
+type Client struct {
+	masterConn    *grpc.ClientConn
+	masterClient  pb.MasterExternalServiceClient
+	tabletConns   map[string]*grpc.ClientConn
+	tabletClients map[string]pb.TabletExternalServiceClient
+	caches        map[string]*TableCache // map of table name to TableCache
+	mu            sync.RWMutex           // Protects tabletConns, tabletClients, and caches
+}
+
+func NewClient(masterAddress string) (*Client, error) {
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	conn, err := grpc.NewClient(masterAddress, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to master server: %v", err)
+	}
+
+	masterClient := pb.NewMasterExternalServiceClient(conn)
+
+	return &Client{
+		masterConn:    conn,
+		masterClient:  masterClient,
+		tabletConns:   make(map[string]*grpc.ClientConn),
+		tabletClients: make(map[string]pb.TabletExternalServiceClient),
+		caches:        make(map[string]*TableCache),
+	}, nil
+}
+
+func (c *Client) Close() {
+	if c.masterConn != nil {
+		c.masterConn.Close()
+		log.Println("Closed connection to master server.")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for addr, conn := range c.tabletConns {
+		if conn != nil {
+			conn.Close()
+			log.Printf("Closed connection to tablet server: %s", addr)
+		}
+	}
+}
+
+// CreateTable creates a new table in the master server with specified column families and columns.
+func (c *Client) CreateTable(tableName string, columnFamilies map[string][]string) error {
+	// Convert columnFamilies map to repeated ColumnFamily message
+	var cfMsgs []*pb.CreateTableRequest_ColumnFamily
+	for family, columns := range columnFamilies {
+		cfMsgs = append(cfMsgs, &pb.CreateTableRequest_ColumnFamily{
+			FamilyName: family,
+			Columns:    columns,
+		})
+	}
+
+	req := &pb.CreateTableRequest{
+		TableName:      tableName,
+		ColumnFamilies: cfMsgs,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.masterClient.CreateTable(ctx, req)
+	if err != nil {
+		return fmt.Errorf("CreateTable RPC failed: %v", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("CreateTable failed: %s", resp.Message)
+	}
+
+	log.Printf("Table '%s' created successfully.", tableName)
+	return nil
+}
+
+// DeleteTable deletes an existing table from the master server.
+func (c *Client) DeleteTable(tableName string) error {
+	req := &pb.DeleteTableRequest{
+		TableName: tableName,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.masterClient.DeleteTable(ctx, req)
+	if err != nil {
+		return fmt.Errorf("DeleteTable RPC failed: %v", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("DeleteTable failed: %s", resp.Message)
+	}
+
+	log.Printf("Table '%s' deleted successfully.", tableName)
+	return nil
+}
+
+// GetTabletLocation retrieves the tablet server address and row range for a given key.
+func (c *Client) GetTabletLocation(tableName, rowKey string) (string, string, string, error) {
+	// Check if the table cache exists
+	c.mu.RLock()
+	tableCache, exists := c.caches[tableName]
+	c.mu.RUnlock()
+
+	if exists {
+		// Attempt to find the server in the cache
+		serverAddress, found := tableCache.FindServerByRowKey(rowKey)
+		if found {
+			return serverAddress, "", "", nil
+		}
+	} else {
+		// Initialize a new cache for the table
+		c.mu.Lock()
+		tableCache, exists = c.caches[tableName]
+		if !exists {
+			tableCache = &TableCache{}
+			c.caches[tableName] = tableCache
+		}
+		c.mu.Unlock()
+	}
+
+	// If not found in cache, perform GetTabletLocation RPC
+	req := &pb.GetTabletLocationRequest{
+		TableName: tableName,
+		Key:       rowKey,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.masterClient.GetTabletLocation(ctx, req)
+	if err != nil {
+		return "", "", "", fmt.Errorf("GetTabletLocation RPC failed: %v", err)
+	}
+
+	// Handle the response based on the presence of tablet_server_address
+	if resp.TabletServerAddress == "" {
+		// Table does not exist
+		return "", "", "", errors.New("table does not exist")
+	}
+
+	// Check if the tablet is not sharded (complete table on one server)
+	if resp.TabletStartRow == "" && resp.TabletEndRow == "" {
+		// Cache the entire table range
+		tr := TabletRange{
+			StartRow:      "",
+			EndRow:        "",
+			ServerAddress: resp.TabletServerAddress,
+		}
+		tableCache.AddRange(tr)
+		return resp.TabletServerAddress, "", "", nil
+	}
+
+	// Cache the specific range returned
+	tr := TabletRange{
+		StartRow:      resp.TabletStartRow,
+		EndRow:        resp.TabletEndRow,
+		ServerAddress: resp.TabletServerAddress,
+	}
+	tableCache.AddRange(tr)
+
+	// Verify if the rowKey falls within the returned range
+	if (tr.StartRow == "" || strings.Compare(rowKey, tr.StartRow) >= 0) &&
+		(tr.EndRow == "" || strings.Compare(rowKey, tr.EndRow) < 0) {
+		return tr.ServerAddress, tr.StartRow, tr.EndRow, nil
+	}
+
+	// If the rowKey does not fall within the range, it does not exist
+	return "", "", "", fmt.Errorf("rowKey '%s' does not exist in table '%s'", rowKey, tableName)
+}
+
+// getTabletClient retrieves or establishes a connection to a tablet server.
+func (c *Client) getTabletClient(tabletAddress string) (pb.TabletExternalServiceClient, error) {
+	c.mu.RLock()
+	client, exists := c.tabletClients[tabletAddress]
+	c.mu.RUnlock()
+
+	if exists {
+		return client, nil
+	}
+
+	// Establish a new connection
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	conn, err := grpc.NewClient(tabletAddress, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to tablet server %s: %v", tabletAddress, err)
+	}
+
+	client = pb.NewTabletExternalServiceClient(conn)
+
+	c.mu.Lock()
+	c.tabletConns[tabletAddress] = conn
+	c.tabletClients[tabletAddress] = client
+	c.mu.Unlock()
+
+	log.Printf("Connected to tablet server: %s", tabletAddress)
+	return client, nil
+}
+
+// Read retrieves data from a tablet server for a specific row key and column.
+func (c *Client) Read(tableName, rowKey, columnFamily, columnQualifier string, returnVersion int64) ([]*pb.ValueWithTimestamps, error) {
+	// Attempt to get the server address from cache
+	serverAddress, _, _, err := c.GetTabletLocation(tableName, rowKey)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := c.getTabletClient(serverAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &pb.ReadRequest{
+		TableName:       tableName,
+		RowKey:          rowKey,
+		ColumnFamily:    columnFamily,
+		ColumnQualifier: columnQualifier,
+		ReturnVersion:   returnVersion,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.Read(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("Read RPC failed: %v", err)
+	}
+
+	// If no values are returned, the rowKey does not exist
+	if len(resp.Values) == 0 {
+		return nil, fmt.Errorf("rowKey '%s' does not exist in table '%s'", rowKey, tableName)
+	}
+
+	return resp.Values, nil
+}
+
+// Write inserts or updates data in a tablet server for a specific row key and column.
+func (c *Client) Write(tableName, rowKey, columnFamily, columnQualifier string, value []byte, timestamp int64) error {
+	// Attempt to get the server address from cache
+	serverAddress, _, _, err := c.GetTabletLocation(tableName, rowKey)
+	if err != nil {
+		return err
+	}
+
+	client, err := c.getTabletClient(serverAddress)
+	if err != nil {
+		return err
+	}
+
+	req := &pb.WriteRequest{
+		TableName:       tableName,
+		RowKey:          rowKey,
+		ColumnFamily:    columnFamily,
+		ColumnQualifier: columnQualifier,
+		Value:           value,
+		Timestamp:       timestamp,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.Write(ctx, req)
+	if err != nil {
+		return fmt.Errorf("Write RPC failed: %v", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("Write failed: %s", resp.ErrorMessage)
+	}
+
+	log.Printf("Write successful for row key '%s'.", rowKey)
+	return nil
+}
+
+// Delete removes data from a tablet server for a specific row key and column.
+func (c *Client) Delete(tableName, rowKey, columnFamily, columnQualifier string) error {
+	// Attempt to get the server address from cache
+	serverAddress, _, _, err := c.GetTabletLocation(tableName, rowKey)
+	if err != nil {
+		return err
+	}
+
+	client, err := c.getTabletClient(serverAddress)
+	if err != nil {
+		return err
+	}
+
+	req := &pb.DeleteRequest{
+		TableName:       tableName,
+		RowKey:          rowKey,
+		ColumnFamily:    columnFamily,
+		ColumnQualifier: columnQualifier,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.Delete(ctx, req)
+	if err != nil {
+		return fmt.Errorf("Delete RPC failed: %v", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("Delete failed: %s", resp.ErrorMessage)
+	}
+
+	log.Printf("Delete successful for row key '%s'.", rowKey)
+	return nil
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/bigtable/master.go ---
+package bigtable
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net"
+	"sync"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	epb "final/proto/external-api"
+	ipb "final/proto/internal-api"
+)
+
+type Tablet struct {
+	TableName    string
+	StartRow     string
+	EndRow       string
+	TabletServer string
+	Sharded      bool // Indicates if the tablet has been sharded
+}
+
+type TabletServerInfo struct {
+	Address        string
+	LastHeartbeat  time.Time
+	RegisteredTime time.Time
+	TabletCount    int // Number of tablets assigned to this server
+}
+
+type Table struct {
+	Name           string
+	ColumnFamilies map[string][]string // map of family name to columns
+	Tablets        []*Tablet
+}
+
+type MasterState struct {
+	mu            sync.RWMutex
+	Tables        map[string]*Table            // map of table name to Table
+	TabletServers map[string]*TabletServerInfo // map of tablet server address to info
+}
+
+type MasterServer struct {
+	epb.UnimplementedMasterExternalServiceServer
+	ipb.UnimplementedMasterInternalServiceServer
+
+	state *MasterState
+}
+
+func NewMasterServer() *MasterServer {
+	return &MasterServer{
+		state: &MasterState{
+			Tables:        make(map[string]*Table),
+			TabletServers: make(map[string]*TabletServerInfo),
+		},
+	}
+}
+
+// Make starts the master server on the specified address.
+// It returns a function to stop the server.
+func Make(address string) (func(), error) {
+	lis, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to listen on %s: %v", address, err)
+	}
+
+	grpcServer := grpc.NewServer()
+
+	masterServer := NewMasterServer()
+
+	// Register external and internal services
+	epb.RegisterMasterExternalServiceServer(grpcServer, masterServer)
+	ipb.RegisterMasterInternalServiceServer(grpcServer, masterServer)
+
+	// Start heartbeat monitoring in a separate goroutine
+	go masterServer.MonitorHeartbeats(10*time.Second, 5*time.Second)
+
+	log.Printf("Master server is running on %s...", address)
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve gRPC server: %v", err)
+		}
+	}()
+
+	// Return a function to stop the server gracefully
+	stopFunc := func() {
+		grpcServer.GracefulStop()
+		log.Println("Master server has been stopped.")
+	}
+
+	return stopFunc, nil
+}
+
+// ExternalMasterService Implementation
+func (ms *MasterServer) CreateTable(ctx context.Context, req *epb.CreateTableRequest) (*epb.CreateTableResponse, error) {
+	ms.state.mu.Lock()
+	defer ms.state.mu.Unlock()
+
+	if _, exists := ms.state.Tables[req.TableName]; exists {
+		msg := fmt.Sprintf("Table '%s' already exists.", req.TableName)
+		log.Println(msg)
+		return &epb.CreateTableResponse{
+			Success: false,
+			Message: msg,
+		}, nil
+	}
+
+	// Initialize the table with column families
+	columnFamilies := make(map[string][]string)
+	for _, cf := range req.ColumnFamilies {
+		columnFamilies[cf.FamilyName] = cf.Columns
+	}
+
+	table := &Table{
+		Name:           req.TableName,
+		ColumnFamilies: columnFamilies,
+		Tablets:        []*Tablet{},
+	}
+
+	ms.state.Tables[req.TableName] = table
+
+	// Assign the entire table to the least loaded tablet server if any are registered
+	if len(ms.state.TabletServers) > 0 {
+		assignedServer, err := ms.getLeastLoadedTabletServer()
+		if err != nil {
+			// Rollback table creation
+			delete(ms.state.Tables, req.TableName)
+			msg := fmt.Sprintf("Failed to find a tablet server to assign table '%s': %v", req.TableName, err)
+			log.Println(msg)
+			return &epb.CreateTableResponse{
+				Success: false,
+				Message: msg,
+			}, nil
+		}
+
+		tablet := &Tablet{
+			TableName:    req.TableName,
+			StartRow:     "",
+			EndRow:       "",
+			TabletServer: assignedServer,
+			Sharded:      false,
+		}
+
+		table.Tablets = append(table.Tablets, tablet)
+
+		ms.state.TabletServers[assignedServer].TabletCount++
+
+		// Notify the tablet server to create the table
+		err = ms.notifyTabletCreateTable(assignedServer, table)
+		if err != nil {
+			// Rollback table creation and decrement TabletCount
+			delete(ms.state.Tables, req.TableName)
+			ms.state.TabletServers[assignedServer].TabletCount--
+			msg := fmt.Sprintf("Failed to notify tablet server '%s' to create table '%s': %v", assignedServer, req.TableName, err)
+			log.Println(msg)
+			return &epb.CreateTableResponse{
+				Success: false,
+				Message: msg,
+			}, nil
+		}
+	}
+
+	log.Printf("Table '%s' created successfully.", req.TableName)
+	return &epb.CreateTableResponse{
+		Success: true,
+		Message: "Table created successfully.",
+	}, nil
+}
+
+func (ms *MasterServer) DeleteTable(ctx context.Context, req *epb.DeleteTableRequest) (*epb.DeleteTableResponse, error) {
+	ms.state.mu.Lock()
+	defer ms.state.mu.Unlock()
+
+	table, exists := ms.state.Tables[req.TableName]
+	if !exists {
+		msg := fmt.Sprintf("Table '%s' does not exist.", req.TableName)
+		log.Println(msg)
+		return &epb.DeleteTableResponse{
+			Success: false,
+			Message: msg,
+		}, nil
+	}
+
+	// Notify all tablet servers managing this table to delete it
+	for _, tablet := range table.Tablets {
+		err := ms.notifyTabletDeleteTable(tablet.TabletServer, table.Name)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to notify tablet server '%s' to delete table '%s': %v", tablet.TabletServer, table.Name, err)
+			log.Println(msg)
+			return &epb.DeleteTableResponse{
+				Success: false,
+				Message: msg,
+			}, nil
+		}
+
+		ms.state.TabletServers[tablet.TabletServer].TabletCount--
+	}
+
+	// Remove the table from master state
+	delete(ms.state.Tables, req.TableName)
+
+	log.Printf("Table '%s' deleted successfully.", req.TableName)
+	return &epb.DeleteTableResponse{
+		Success: true,
+		Message: "Table deleted successfully.",
+	}, nil
+}
+
+func (ms *MasterServer) GetTabletLocation(ctx context.Context, req *epb.GetTabletLocationRequest) (*epb.GetTabletLocationResponse, error) {
+	ms.state.mu.RLock()
+	defer ms.state.mu.RUnlock()
+
+	table, exists := ms.state.Tables[req.TableName]
+	if !exists {
+		msg := fmt.Sprintf("Table '%s' does not exist.", req.TableName)
+		log.Println(msg)
+		return &epb.GetTabletLocationResponse{
+			TabletServerAddress: "",
+			TabletStartRow:      "",
+			TabletEndRow:        "",
+		}, nil
+	}
+
+	// Find the tablet responsible for the given key
+	for _, tablet := range table.Tablets {
+		if isKeyInRange(req.Key, tablet.StartRow, tablet.EndRow) {
+			return &epb.GetTabletLocationResponse{
+				TabletServerAddress: tablet.TabletServer,
+				TabletStartRow:      tablet.StartRow,
+				TabletEndRow:        tablet.EndRow,
+			}, nil
+		}
+	}
+
+	// If not found, it might indicate an inconsistency
+	msg := fmt.Sprintf("No tablet found for key '%s' in table '%s'.", req.Key, req.TableName)
+	log.Println(msg)
+	return &epb.GetTabletLocationResponse{
+		TabletServerAddress: "",
+		TabletStartRow:      "",
+		TabletEndRow:        "",
+	}, nil
+}
+
+// InternalMasterService Implementation
+func (ms *MasterServer) RegisterTablet(ctx context.Context, req *ipb.RegisterTabletRequest) (*ipb.RegisterTabletResponse, error) {
+	ms.state.mu.Lock()
+	defer ms.state.mu.Unlock()
+
+	if _, exists := ms.state.TabletServers[req.TabletAddress]; exists {
+		msg := fmt.Sprintf("Tablet server '%s' is already registered.", req.TabletAddress)
+		log.Println(msg)
+		// Even if already registered, respond with success
+		return &ipb.RegisterTabletResponse{}, nil
+	}
+
+	ms.state.TabletServers[req.TabletAddress] = &TabletServerInfo{
+		Address:        req.TabletAddress,
+		LastHeartbeat:  time.Now(),
+		RegisteredTime: time.Now(),
+		TabletCount:    0, // Initialize TabletCount to zero
+	}
+
+	log.Printf("Tablet server '%s' registered successfully.", req.TabletAddress)
+	return &ipb.RegisterTabletResponse{}, nil
+}
+
+func (ms *MasterServer) UnregisterTablet(ctx context.Context, req *ipb.UnregisterTabletRequest) (*ipb.UnregisterTabletResponse, error) {
+	ms.state.mu.Lock()
+	defer ms.state.mu.Unlock()
+
+	_, exists := ms.state.TabletServers[req.TabletAddress]
+	if !exists {
+		msg := fmt.Sprintf("Tablet server '%s' is not registered.", req.TabletAddress)
+		log.Println(msg)
+		return &ipb.UnregisterTabletResponse{}, nil
+	}
+
+	// TODO: handle reassigning tablets from the unregistered server
+
+	// Remove the tablet server from the registry
+	delete(ms.state.TabletServers, req.TabletAddress)
+	log.Printf("Tablet server '%s' unregistered successfully.", req.TabletAddress)
+
+	return &ipb.UnregisterTabletResponse{}, nil
+}
+
+func (ms *MasterServer) NotifyShardRequest(ctx context.Context, req *ipb.ShardRequest) (*ipb.ShardResponse, error) {
+	ms.state.mu.Lock()
+	defer ms.state.mu.Unlock()
+
+	_, exists := ms.state.Tables[req.TableName]
+	if !exists {
+		msg := fmt.Sprintf("ShardRequest: Table '%s' does not exist.", req.TableName)
+		log.Println(msg)
+		return nil, errors.New(msg)
+	}
+
+	// // Find the tablet to shard
+	// var tabletToShard *Tablet
+	// for _, tablet := range table.Tablets {
+	// 	if tablet.TabletServer == req.TabletAddress && !tablet.Sharded {
+	// 		tabletToShard = tablet
+	// 		break
+	// 	}
+	// }
+
+	// if tabletToShard == nil {
+	// 	msg := fmt.Sprintf("ShardRequest: No suitable tablet found on server '%s' for table '%s'.", req.TabletAddress, req.TableName)
+	// 	log.Println(msg)
+	// 	return nil, errors.New(msg)
+	// }
+
+	// Select the least loaded tablet server to host the shard
+	targetServer, err := ms.getLeastLoadedTabletServerExcluding(req.TabletAddress)
+	if err != nil {
+		msg := fmt.Sprintf("ShardRequest: Failed to find a target tablet server for sharding table '%s': %v", req.TableName, err)
+		log.Println(msg)
+		return nil, errors.New(msg)
+	}
+
+	// Respond with the target server address
+	log.Printf("ShardRequest: Assigning sharding of tablet '%s' for table '%s' to server '%s'.",
+		req.TabletAddress, req.TableName, targetServer)
+
+	return &ipb.ShardResponse{
+		TargetTabletAddress: targetServer,
+	}, nil
+}
+
+func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFinishNotificationRequest) (*ipb.ShardFinishNotificationResponse, error) {
+	ms.state.mu.Lock()
+	defer ms.state.mu.Unlock()
+
+	table, exists := ms.state.Tables[req.TableName]
+	if !exists {
+		msg := fmt.Sprintf("ShardFinishNotification: Table '%s' does not exist.", req.TableName)
+		log.Println(msg)
+		return nil, errors.New(msg)
+	}
+
+	// Update the tablets with the new shard information
+	originalTablet := &Tablet{
+		StartRow:     req.Source.RowFrom,
+		EndRow:       req.Source.RowTo,
+		TabletServer: req.Source.TabletAddress,
+		Sharded:      true,
+	}
+
+	newTablet := &Tablet{
+		TableName:    req.TableName,
+		StartRow:     req.Target.RowFrom,
+		EndRow:       req.Target.RowTo,
+		TabletServer: req.Target.TabletAddress,
+		Sharded:      false,
+	}
+
+	// Verify that the original tablet exists
+	found := false
+	for _, tablet := range table.Tablets {
+		if tablet.TabletServer == originalTablet.TabletServer &&
+			tablet.StartRow == originalTablet.StartRow &&
+			tablet.EndRow == originalTablet.EndRow {
+			// Update the original tablet's Sharded status
+			tablet.Sharded = originalTablet.Sharded
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		msg := fmt.Sprintf("ShardFinishNotification: Original tablet not found for table '%s'.", req.TableName)
+		log.Println(msg)
+		return nil, errors.New(msg)
+	}
+
+	// Add the new shard tablet
+	table.Tablets = append(table.Tablets, newTablet)
+
+	// Increment TabletCount for the new shard's tablet server
+	if serverInfo, exists := ms.state.TabletServers[newTablet.TabletServer]; exists {
+		serverInfo.TabletCount++
+	} else {
+		msg := fmt.Sprintf("ShardFinishNotification: New shard tablet server '%s' is not registered.", newTablet.TabletServer)
+		log.Println(msg)
+		return nil, errors.New(msg)
+	}
+
+	log.Printf("ShardFinishNotification: Sharding completed for table '%s'. New shard on server '%s' with range [%s, %s).",
+		req.TableName, newTablet.TabletServer, newTablet.StartRow, newTablet.EndRow)
+
+	return &ipb.ShardFinishNotificationResponse{}, nil
+}
+
+// MonitorHeartbeats periodically sends Heartbeat RPCs to tablet servers to check their status.
+func (ms *MasterServer) MonitorHeartbeats(interval time.Duration, timeout time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		<-ticker.C
+		ms.state.mu.RLock()
+		servers := make([]*TabletServerInfo, 0, len(ms.state.TabletServers))
+		for _, server := range ms.state.TabletServers {
+			servers = append(servers, server)
+		}
+		ms.state.mu.RUnlock()
+
+		var wg sync.WaitGroup
+		for _, server := range servers {
+			wg.Add(1)
+			go func(s *TabletServerInfo) {
+				defer wg.Done()
+				ms.sendHeartbeat(s, timeout)
+			}(server)
+		}
+		wg.Wait()
+	}
+}
+
+// sendHeartbeat sends a Heartbeat RPC to a tablet server and updates its status.
+func (ms *MasterServer) sendHeartbeat(server *TabletServerInfo, timeout time.Duration) {
+	conn, err := grpc.NewClient(server.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Printf("Heartbeat failed: Unable to connect to tablet server '%s': %v. Removing server.", server.Address, err)
+		ms.removeTabletServer(server.Address)
+		return
+	}
+	defer conn.Close()
+
+	client := ipb.NewTabletInternalServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	resp, err := client.Heartbeat(ctx, &ipb.HeartbeatRequest{})
+	if err != nil || !resp.Success {
+		log.Printf("Heartbeat failed: Tablet server '%s' did not respond successfully: %v. Removing server.", server.Address, err)
+		ms.removeTabletServer(server.Address)
+		return
+	}
+
+	// Update the LastHeartbeat timestamp
+	ms.state.mu.Lock()
+	if s, exists := ms.state.TabletServers[server.Address]; exists {
+		s.LastHeartbeat = time.Now()
+	}
+	ms.state.mu.Unlock()
+
+	//log.Printf("Heartbeat successful: Tablet server '%s' is online.", server.Address)
+}
+
+// removeTabletServer removes a tablet server from the registry.
+func (ms *MasterServer) removeTabletServer(address string) {
+	ms.state.mu.Lock()
+	defer ms.state.mu.Unlock()
+
+	if _, exists := ms.state.TabletServers[address]; exists {
+		// TODO: handle reassigning tablets from this server
+
+		delete(ms.state.TabletServers, address)
+		log.Printf("Tablet server '%s' has been removed from the registry.", address)
+	}
+}
+
+// Helper Functions
+// getLeastLoadedTabletServer selects the tablet server with the least number of assigned tablets.
+func (ms *MasterServer) getLeastLoadedTabletServer() (string, error) {
+	minCount := -1
+	var selectedServer string
+	for addr, serverInfo := range ms.state.TabletServers {
+		if minCount == -1 || serverInfo.TabletCount < minCount {
+			minCount = serverInfo.TabletCount
+			selectedServer = addr
+		}
+	}
+	if selectedServer == "" {
+		return "", errors.New("no tablet servers available")
+	}
+	return selectedServer, nil
+}
+
+// getLeastLoadedTabletServerExcluding selects the least loaded tablet server excluding the specified address.
+func (ms *MasterServer) getLeastLoadedTabletServerExcluding(excludeAddr string) (string, error) {
+	minCount := -1
+	var selectedServer string
+	for addr, serverInfo := range ms.state.TabletServers {
+		if addr == excludeAddr {
+			continue
+		}
+		if minCount == -1 || serverInfo.TabletCount < minCount {
+			minCount = serverInfo.TabletCount
+			selectedServer = addr
+		}
+	}
+	if selectedServer == "" {
+		return "", errors.New("no tablet servers available excluding the specified server")
+	}
+	return selectedServer, nil
+}
+
+// isKeyInRange checks if a given key falls within the start and end row of a tablet.
+// Rules:
+// - If both start and end are empty, the tablet covers the entire table.
+// - If start is empty, the key must be less than end.
+// - If end is empty, the key must be greater than or equal to start.
+// - Otherwise, the key must be in [start, end).
+func isKeyInRange(key, start, end string) bool {
+	if start == "" && end == "" {
+		// The tablet covers the entire table
+		return true
+	}
+	if start == "" {
+		return key < end
+	}
+	if end == "" {
+		return key >= start
+	}
+	return key >= start && key < end
+}
+
+// notifyTabletCreateTable sends a CreateTableInternal RPC to the specified tablet server.
+// Uses grpc.Dial directly without a separate NewClient function.
+func (ms *MasterServer) notifyTabletCreateTable(serverAddress string, table *Table) error {
+	conn, err := grpc.NewClient(serverAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("failed to connect to tablet server '%s': %v", serverAddress, err)
+	}
+	defer conn.Close()
+
+	client := ipb.NewTabletInternalServiceClient(conn)
+
+	// Prepare the request
+	var cfMsgs []*ipb.CreateTableInternalRequest_ColumnFamily
+	for family, columns := range table.ColumnFamilies {
+		cfMsgs = append(cfMsgs, &ipb.CreateTableInternalRequest_ColumnFamily{
+			FamilyName: family,
+			Columns:    columns,
+		})
+	}
+
+	req := &ipb.CreateTableInternalRequest{
+		TableName:      table.Name,
+		ColumnFamilies: cfMsgs,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.CreateTable(ctx, req)
+	if err != nil {
+		return fmt.Errorf("CreateTable RPC to tablet server '%s' failed: %v", serverAddress, err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("CreateTable on tablet server '%s' failed: %s", serverAddress, resp.Message)
+	}
+
+	log.Printf("Successfully notified tablet server '%s' to create table '%s'.", serverAddress, table.Name)
+	return nil
+}
+
+// notifyTabletDeleteTable sends a DeleteTableInternal RPC to the specified tablet server.
+func (ms *MasterServer) notifyTabletDeleteTable(serverAddress, tableName string) error {
+	conn, err := grpc.NewClient(serverAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("failed to connect to tablet server '%s': %v", serverAddress, err)
+	}
+	defer conn.Close()
+
+	client := ipb.NewTabletInternalServiceClient(conn)
+
+	// Prepare the request
+	req := &ipb.DeleteTableInternalRequest{
+		TableName: tableName,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.DeleteTable(ctx, req)
+	if err != nil {
+		return fmt.Errorf("DeleteTable RPC to tablet server '%s' failed: %v", serverAddress, err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("DeleteTable on tablet server '%s' failed: %s", serverAddress, resp.Message)
+	}
+
+	log.Printf("Successfully notified tablet server '%s' to delete table '%s'.", serverAddress, tableName)
+	return nil
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/bigtable/tablet/util.go ---
+package tablet
+
+import (
+	"fmt"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+type SetupOptions struct {
+	TabletAddress string
+	MasterAddress string
+	MaxTableSize  int
+	TestMode      bool
+}
+
+// localhost:9090, : is not allowed in the file path, replace it with _
+func GetFilePath(address string, tableName string) string {
+	address = strings.Replace(address, ":", "_", -1)
+	return filepath.Join(address, tableName)
+}
+
+func BuildKey(rowKey, columnFamily, columnQualifier string, timestamp int64) string {
+	reversedTimestamp := ^timestamp // descendingOrder timestamp so we can retrieve the most recent data first
+	return fmt.Sprintf("%s:%s:%s:%d", rowKey, columnFamily, columnQualifier, reversedTimestamp)
+}
+
+func ExtractTimestampFromKey(key string) (int64, error) {
+	parts := strings.Split(key, ":")
+	if len(parts) < 4 {
+		return 0, fmt.Errorf("invalid key format") // Return an error if the key is in an invalid format
+	}
+
+	// Extract the reversed timestamp (the 4th part)
+	reversedTimestampStr := parts[3]
+	reversedTimestamp, err := strconv.ParseInt(reversedTimestampStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse timestamp: %v", err) // Return an error if parsing fails
+	}
+	timestamp := ^reversedTimestamp
+	return timestamp, nil
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/bigtable/tablet/service-discovery.go ---
+package tablet
+
+import (
+	"context"
+	ipb "final/proto/internal-api"
+)
+
+func (s *TabletServiceServer) RegisterMyself() error {
+	request := &ipb.RegisterTabletRequest{
+		TabletAddress: s.TabletAddress,
+	}
+
+	_, err := (*s.MasterClient).RegisterTablet(context.Background(), request)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *TabletServiceServer) UnRegisterMyself() error {
+	request := &ipb.UnregisterTabletRequest{
+		TabletAddress: s.TabletAddress,
+	}
+
+	_, err := (*s.MasterClient).UnregisterTablet(context.Background(), request)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *TabletServiceServer) Heartbeat(ctx context.Context, request *ipb.HeartbeatRequest) (*ipb.HeartbeatResponse, error) {
+	return &ipb.HeartbeatResponse{
+		Success: true,
+	}, nil
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/bigtable/tablet/crud.go ---
+package tablet
+
+import (
+	"bytes"
+	"context"
+	"encoding/gob"
+	proto "final/proto/external-api"
+	ipb "final/proto/internal-api"
+	"fmt"
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"log"
+	"os"
+	"sort"
+)
+
+type ValueWithKeyAndTimestamps struct {
+	Timestamp int64
+	Value     string
+	Key       string
+}
+
+func (s *TabletServiceServer) CreateTable(ctx context.Context, req *ipb.CreateTableInternalRequest) (*ipb.CreateTableInternalResponse, error) {
+	tableName := req.TableName
+	_, exist := s.Tables[tableName]
+	if exist {
+		return nil, status.Error(codes.AlreadyExists, "table already exists")
+	}
+	// : is not allowed in the file path
+	dbPath := GetFilePath(s.TabletAddress, tableName)
+	db, err := leveldb.OpenFile(dbPath, nil)
+	if err != nil {
+		return &ipb.CreateTableInternalResponse{
+			Success: false,
+		}, nil
+	}
+
+	// update table Map
+	s.Tables[tableName] = db
+
+	// update table columns info
+	s.TablesColumns[tableName] = make(map[string][]string)
+	columnFamilyMap := s.TablesColumns[tableName]
+	for _, columnFamily := range req.ColumnFamilies {
+		columnFamilyMap[columnFamily.FamilyName] = columnFamily.Columns
+	}
+
+	//  persist metadata row so they can be recovered when the server crashes
+	err = WriteMetaDataToPersistent("column", columnFamilyMap, db)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ipb.CreateTableInternalResponse{
+		Success: true,
+	}, nil
+}
+
+func (s *TabletServiceServer) DeleteTable(ctx context.Context, req *ipb.DeleteTableInternalRequest) (*ipb.DeleteTableInternalResponse, error) {
+	tableName := req.TableName
+	// Check if the table exists in the map of tables
+	db, ok := s.Tables[tableName]
+	if !ok {
+		return &ipb.DeleteTableInternalResponse{
+			Success: false,
+			Message: fmt.Sprintf("Table %s not found", tableName),
+		}, nil
+	}
+
+	// Close the LevelDB instance first
+	err := db.Close()
+	if err != nil {
+		return &ipb.DeleteTableInternalResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to close LevelDB for table %s: %v", tableName, err),
+		}, nil
+	}
+
+	dbPath := GetFilePath(s.TabletAddress, tableName)
+	// Delete all files under the table
+	err = os.RemoveAll(dbPath)
+	if err != nil {
+		return &ipb.DeleteTableInternalResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to delete LevelDB database at %s: %v", dbPath, err),
+		}, nil
+	}
+
+	// Remove the reference from the Tables map
+	delete(s.Tables, tableName)
+
+	return &ipb.DeleteTableInternalResponse{
+		Success: true,
+	}, nil
+}
+
+// Paper Section2 -> timestamp subsection
+// Each cell in a Bigtable can contain multiple versions of
+// the same data; these versions are indexed by timestamp.  Different
+// versions of a cell are stored in decreasing timestamp order, so that the
+// most recent versions can be read first. In our implementation, only the most
+// recent 3 version will be kept, older version will be deleted
+func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) (*proto.ReadResponse, error) {
+	prefix := fmt.Sprintf("%s:%s:%s:", req.RowKey, req.ColumnFamily, req.ColumnQualifier)
+	tableName := req.TableName
+	tableFile, ok := s.Tables[tableName]
+	if !ok {
+		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
+	}
+
+	iter := tableFile.NewIterator(util.BytesPrefix([]byte(prefix)), nil)
+	defer iter.Release()
+
+	var allValues []ValueWithKeyAndTimestamps
+
+	// collect all versions
+	for iter.Next() {
+		key := string(iter.Key())
+		value := string(iter.Value())
+
+		timestamp, err := ExtractTimestampFromKey(key)
+		if err != nil {
+			continue
+		}
+
+		allValues = append(allValues, ValueWithKeyAndTimestamps{
+			Timestamp: timestamp,
+			Value:     value,
+			Key:       key, // store key for later delete
+		})
+	}
+
+	// sort array
+	sort.Slice(allValues, func(i, j int) bool {
+		return allValues[i].Timestamp > allValues[j].Timestamp
+	})
+
+	// TODO: make it configurable
+	maxVersion := 3
+	if len(allValues) > maxVersion {
+		// delete the old versions
+		for i := maxVersion; i < len(allValues); i++ {
+			deleteErr := tableFile.Delete([]byte(allValues[i].Key), nil)
+			if deleteErr != nil {
+				log.Printf("Failed to delete old version: %v\n", deleteErr)
+			}
+		}
+
+		allValues = allValues[:maxVersion]
+	}
+
+	var returnValues []*proto.ValueWithTimestamps
+	for i := 0; i < len(allValues); i++ {
+		if i == int(req.ReturnVersion) {
+			break
+		}
+
+		returnValues = append(returnValues, &proto.ValueWithTimestamps{
+			Timestamp: allValues[i].Timestamp,
+			Value:     allValues[i].Value,
+		})
+	}
+
+	return &proto.ReadResponse{Values: returnValues}, nil
+}
+
+func (s *TabletServiceServer) Write(ctx context.Context, req *proto.WriteRequest) (*proto.WriteResponse, error) {
+	key := BuildKey(req.RowKey, req.ColumnFamily, req.ColumnQualifier, req.Timestamp)
+	tableName := req.TableName
+	tableFile, ok := s.Tables[tableName]
+	if !ok {
+		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
+	}
+
+	err := tableFile.Put([]byte(key), req.Value, nil)
+	if err != nil {
+		log.Printf("Failed to write to LevelDB: %v\n", err)
+		return &proto.WriteResponse{Success: false}, err
+	}
+
+	// update row info: persist metadata row so they can be recovered when the server crashes
+	rowSet := s.TablesRows[tableName]
+	_, exist := rowSet[req.RowKey]
+	if !exist {
+		// if this row doesn't exist before, add to the set and update persistent
+		rowSet[req.RowKey] = struct{}{}
+		err = WriteMetaDataToPersistent("row", rowSet, tableFile)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	return &proto.WriteResponse{Success: true}, nil
+}
+
+func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteRequest) (*proto.DeleteResponse, error) {
+	prefix := fmt.Sprintf("%s:%s:%s:", req.RowKey, req.ColumnFamily, req.ColumnQualifier)
+
+	// check if table exists
+	tableName := req.TableName
+	tableFile, ok := s.Tables[tableName]
+	if !ok {
+		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
+	}
+
+	// iterate over all keys
+	iter := tableFile.NewIterator(util.BytesPrefix([]byte(prefix)), nil)
+	defer iter.Release()
+	var keysToDelete []string
+	for iter.Next() {
+		key := string(iter.Key())
+		keysToDelete = append(keysToDelete, key)
+	}
+
+	if len(keysToDelete) == 0 {
+		return nil, status.Error(codes.NotFound, fmt.Sprintf("No value found for key %s", req.RowKey))
+	}
+
+	// delete all keys
+	for _, key := range keysToDelete {
+		deleteErr := tableFile.Delete([]byte(key), nil)
+		if deleteErr != nil {
+			log.Printf("Failed to delete key %s: %v\n", key, deleteErr)
+		}
+	}
+
+	// update row info: persist metadata row so they can be recovered when the server crashes
+	rowSet := s.TablesRows[tableName]
+	delete(rowSet, req.RowKey)
+	err := WriteMetaDataToPersistent("row", rowSet, tableFile)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &proto.DeleteResponse{Success: true}, nil
+}
+
+func WriteMetaDataToPersistent(metadataType string, data interface{}, db *leveldb.DB) error {
+	var buf bytes.Buffer
+	encoder := gob.NewEncoder(&buf)
+	if err := encoder.Encode(data); err != nil {
+		log.Fatal(fmt.Sprintf("Encode metadata %v failed: %v", metadataType, err))
+	}
+
+	err := db.Put([]byte(fmt.Sprintf("meta_%s", metadataType)), buf.Bytes(), nil)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Persist %s to LevelDB failed: %v", metadataType, err))
+	}
+
+	return nil
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/bigtable/tablet/recovery.go ---
+package tablet
+
+import (
+	"bytes"
+	"context"
+	"encoding/gob"
+	ipb "final/proto/internal-api"
+	"fmt"
+	"github.com/sirupsen/logrus"
+	"github.com/syndtr/goleveldb/leveldb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"log"
+	"os"
+	"path/filepath"
+)
+
+func (s *TabletServiceServer) RecoverCrashedTablet(ctx context.Context, req *ipb.RecoveryRequest) (*ipb.RecoveryResponse, error) {
+	crashedTabletAddress := req.CrashedTabletAddress
+	tableName := req.TableName
+	err := s.MigrateTableToSelf(crashedTabletAddress, tableName)
+	if err != nil {
+		return &ipb.RecoveryResponse{
+			Success: false,
+		}, status.Error(codes.Internal, err.Error())
+	}
+
+	return &ipb.RecoveryResponse{
+		Success: true,
+	}, nil
+}
+
+func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tableName string) error {
+	// Step1: create table if not exist
+	dbPath := GetFilePath(s.TabletAddress, tableName)
+	db, err := leveldb.OpenFile(dbPath, nil)
+	if err != nil {
+		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
+	}
+	s.Tables[tableName] = db
+
+	// move data (table contents and metadata) from "sourceServerAddress/tableName" to "s.TabletAddress/tableName"
+	err = s.recoverData(sourceServerAddress, tableName)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to recover actual data: %v", err)
+	}
+
+	// recover metadata first
+	err = s.rebuildColumnsMetadata(db)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to rebuild columns metadata: %v", err)
+	}
+
+	err = s.rebuildRowsMetadata(db)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to rebuild rows metadata: %v", err)
+	}
+
+	logrus.Info(fmt.Sprintf("Recovery completed successfully for: %s - %s, data is moved to %s", sourceServerAddress, tableName, s.TabletAddress))
+	return nil
+}
+
+func (s *TabletServiceServer) rebuildColumnsMetadata(db *leveldb.DB) error {
+	data, err := db.Get([]byte("meta_row"), nil)
+	if err != nil {
+		logrus.Fatalf("Read from LevelDB failed: %v", err)
+	}
+
+	// decode serialized data to rebuild rowSet
+	var restoredRowSet map[string]struct{}
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	if err = decoder.Decode(&restoredRowSet); err != nil {
+		log.Fatal("Decode failed:", err)
+	}
+
+	// just to check restored row set data when debugging
+	logrus.Debug("Restored Set: %v", restoredRowSet)
+	return nil
+}
+
+func (s *TabletServiceServer) rebuildRowsMetadata(db *leveldb.DB) error {
+	data, err := db.Get([]byte("meta_column"), nil)
+	if err != nil {
+		logrus.Fatalf("Read from LevelDB failed: %v", err)
+	}
+
+	// decode serialized data to rebuild rowSet
+	var restoredColumnFamilies map[string][]string
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	if err = decoder.Decode(&restoredColumnFamilies); err != nil {
+		return status.Errorf(codes.Internal, "decoder failed: %v", err)
+	}
+
+	// just to check restored row set data when debugging
+	logrus.Debug("Restored ColumnFamilies: %v", restoredColumnFamilies)
+	return nil
+}
+
+// recoverActualData - mimic moving data in crashedServerAddress to current tablet server
+func (s *TabletServiceServer) recoverData(crashedServerAddress string, tableName string) error {
+	sourceDataPath := GetFilePath(crashedServerAddress, tableName)
+	destDataPath := GetFilePath(s.TabletAddress, tableName)
+
+	// Ensure destination exists
+	if err := os.MkdirAll(filepath.Dir(destDataPath), os.ModePerm); err != nil {
+		return status.Errorf(codes.Internal, "failed to create dest data directory: %v", err)
+	}
+
+	// Move LevelDB files
+	if err := moveDir(sourceDataPath, destDataPath); err != nil {
+		return status.Errorf(codes.Internal, "failed to move data directory: %v", err)
+	}
+
+	logrus.Debug("move level db succeed")
+	return nil
+}
+
+// moveDir - Utility function to move a directory (recursively)
+func moveDir(sourceDir, destDir string) error {
+	// Remove destination directory if it already exists
+	if _, err := os.Stat(destDir); err == nil {
+		if err = os.RemoveAll(destDir); err != nil {
+			return fmt.Errorf("failed to remove existing destination directory: %v", err)
+		}
+	}
+
+	// Move directory
+	if err := os.Rename(sourceDir, destDir); err != nil {
+		return err
+	}
+	return nil
+}
+
+//// moveFile - Utility function to move a file
+//func moveFile(sourcePath, destPath string) error {
+//	// Ensure destination directory exists
+//	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+//		return err
+//	}
+//
+//	// Move file
+//	if err := os.Rename(sourcePath, destPath); err != nil {
+//		return err
+//	}
+//	return nil
+//}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/bigtable/tablet/tablet.go ---
+package tablet
+
+import (
+	epb "final/proto/external-api"
+	ipb "final/proto/internal-api"
+	"fmt"
+	"github.com/syndtr/goleveldb/leveldb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"log"
+)
+
+//tables_rows ={
+//	"customers": {
+//		"customer_0001", "customer_0002", "customer_0003", // 客户表中的部分行键示例，假设行键是客户编号
+//		},
+//		"orders": {
+//		"order_0001", "order_0002", "order_0003", "order_0004", // 订单表中的部分行键示例，假设行键是订单编号
+//		},
+//	}
+
+//tables_columns = {
+//		"customers": {
+//			"basic_info": {
+//				"customer_name", "customer_email", "customer_phone",
+//			},
+//			"address_info": {
+//				"province", "city", "street", "zip_code",
+//			},
+//		},
+//		"orders": {
+//			"order_detail": {
+//				"product_name", "product_quantity", "product_price",
+//			},
+//			"order_status": {
+//				"status", "update_time",
+//			},
+//		},
+//   }
+//
+
+// TabletService
+type TabletServiceServer struct {
+	epb.UnimplementedTabletExternalServiceServer
+	ipb.UnimplementedTabletInternalServiceServer
+	Tables        map[string]*leveldb.DB // tableName -> levelDB
+	TabletAddress string
+	MasterAddress string
+	MasterConn    *grpc.ClientConn
+	MasterClient  *ipb.MasterInternalServiceClient
+	MaxTableCnt   int
+	TablesRows    map[string]map[string]struct{}
+	TablesColumns map[string]map[string][]string
+}
+
+func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {
+	//var masterClient ipb.MasterInternalServiceClient
+	//var conn *grpc.ClientConn
+
+	conn, err := grpc.NewClient(opt.MasterAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, status.Error(codes.Unavailable, fmt.Sprint("Tablet %s Could not connect to master", opt.TabletAddress))
+	}
+	masterClient := ipb.NewMasterInternalServiceClient(conn)
+
+	return &TabletServiceServer{
+		Tables:        make(map[string]*leveldb.DB),
+		TabletAddress: opt.TabletAddress,
+		MasterAddress: opt.MasterAddress, // "localhost:12345"
+		MasterConn:    conn,
+		MasterClient:  &masterClient,
+		MaxTableCnt:   opt.MaxTableSize,
+		TablesRows:    make(map[string]map[string]struct{}),
+		TablesColumns: make(map[string]map[string][]string),
+	}, nil
+}
+
+func (s *TabletServiceServer) CloseMasterConnection() {
+	err := s.MasterConn.Close()
+	if err != nil {
+		return
+	}
+}
+
+func (s *TabletServiceServer) CloseAllTables() {
+	for name, db := range s.Tables {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close table %s: %v\n", name, err)
+		}
+	}
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/bigtable/tablet/shard.go ---
+package tablet
+
+import (
+	"context"
+	ipb "final/proto/internal-api"
+	"fmt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"log"
+	"time"
+)
+
+// -------------------------- Tablet As a grpc service consumer ------------------------------
+func (s *TabletServiceServer) PeriodicallyCheckMaxSize(ctx context.Context, period int) {
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Stopping PeriodicallyCheckMaxSize...")
+			return
+		default:
+			time.Sleep(time.Microsecond * time.Duration(period))
+			s.checkAndNotifyMasterForShard()
+		}
+	}
+}
+
+// checkAndNotifyMasterForShard if the size of any table rows is greater than max size, notify the master to issue a shard command
+// Problem: what if this table is being modified during this time
+func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
+	if len(s.Tables) < s.MaxTableCnt {
+		return nil
+	}
+
+	client := *(s.MasterClient)
+
+	idx := 0
+	toMoveTables := make([]string, 0)
+	// collect tables that will be moved to another tablet
+	for tableName, _ := range s.Tables {
+		if idx >= s.MaxTableCnt {
+			toMoveTables = append(toMoveTables, tableName)
+		}
+		idx++
+	}
+
+	for _, tableName := range toMoveTables {
+		req := &ipb.ShardRequest{
+			TabletAddress: s.TabletAddress,
+			TableName:     tableName,
+		}
+
+		response, err := client.NotifyShardRequest(context.Background(), req)
+		if err != nil {
+			log.Printf("failed to notify master for shard request: %v", err)
+		}
+
+		err = s.notifyTabletServerForShardUpdate(tableName, response.TargetTabletAddress)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to notify tablet server for shard update: %v", err)
+		}
+
+		err = s.notifyMasterShardFinished(context.Background(), tableName, response.TargetTabletAddress)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to notify master that shard is done: %v", err)
+		}
+
+		//for tableName := range s.TablesRows {
+		//	if len(tablesRows[tableName]) >= s.MaxTableCnt {
+		//		rowKeys := make([]string, len(tablesRows[tableName]))
+		//		copy(rowKeys, tablesRows[tableName])
+		//		sort.Strings(rowKeys) // TODO: check the sort? sort by what
+		//
+		//		shardRowKeys := rowKeys[:s.MaxTableCnt/2+1]
+		//		remainingRowKeys := rowKeys[s.MaxTableCnt/2:]
+		//
+		//		req := &ipb.ShardRequest{
+		//			TabletAddress: s.TabletAddress,
+		//			TableName:     tableName,
+		//		}
+		//
+		//		_, err := client.NotifyShardRequest(context.Background(), req)
+		//		if err != nil {
+		//			log.Printf("failed to notify master for shard request: %v", err)
+		//		}
+		//	}
+	}
+	return nil
+}
+
+// ShardFinishRequest notify master server after finishing shard
+func (s *TabletServiceServer) notifyMasterShardFinished(ctx context.Context, tableName string, targetTabletAddress string) error {
+	req := &ipb.ShardFinishNotificationRequest{
+		TableName: tableName,
+		Source:    s.TabletAddress,
+		Target:    targetTabletAddress,
+	}
+
+	client := *s.MasterClient
+	_, err := client.NotifyShardFinish(ctx, req)
+	if err != nil {
+		log.Printf("failed to notify master for shard finish: %v", err)
+		return err
+	}
+	return nil
+}
+
+// UpdateShardRequest
+func (s *TabletServiceServer) notifyTabletServerForShardUpdate(tableName string, targetTabletAddress string) error {
+	req := &ipb.UpdateShardRequest{
+		TableName:           tableName,
+		SourceTabletAddress: s.TabletAddress,
+	}
+
+	conn, err := grpc.NewClient(targetTabletAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("did not connect: %v", err)
+	}
+	defer conn.Close()
+
+	client := ipb.NewTabletInternalServiceClient(conn)
+	response, err := client.UpdateShard(context.Background(), req)
+	if err != nil {
+		return status.Errorf(codes.Internal, "%v", err)
+	}
+
+	if response.Success {
+		// TODO: (Test This) shard is done, we need to delete the table path in the original server address
+		// IMPORTANT: it has to be deleted after the migration is done, otherwise the migration cannot read the file
+		deleteReq := &ipb.DeleteTableInternalRequest{
+			TableName: tableName,
+		}
+		_, err = s.DeleteTable(context.Background(), deleteReq)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to delete table: %v", err)
+		}
+
+	}
+
+	return nil
+}
+
+// ------------------------ -- Tablet As a grpc service provider ------------------------------
+func (s *TabletServiceServer) UpdateShard(ctx context.Context, req *ipb.UpdateShardRequest) (*ipb.UpdateShardResponse, error) {
+	tableName := req.TableName
+	sourceTabletAddress := req.SourceTabletAddress
+
+	// migrate
+	err := s.MigrateTableToSelf(sourceTabletAddress, tableName)
+	if err != nil {
+		return &ipb.UpdateShardResponse{
+			Success: false,
+		}, err
+	}
+
+	return &ipb.UpdateShardResponse{
+		Success: true,
+	}, nil
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/cmd/client/client_main.go ---
+package client
+
+func main() {
+
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/cmd/server/tablet/tablet_server.go ---
+package main
+
+import (
+	"context"
+	tablet "final/bigtable/tablet"
+	epb "final/proto/external-api"
+	ipb "final/proto/internal-api"
+	"flag"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"log"
+	"net"
+	"os"
+	"os/signal"
+	"syscall"
+)
+
+func main() {
+	// read input
+	tabletAddress := flag.String("tablet_address", "", "Tablet service address")
+	masterAddress := flag.String("master_address", "", "Master service address")
+	maxTableCnt := flag.Int("max_table_cnt", 0, "Max table count")
+	checkMaxCntPeriod := flag.Int("check_max_period", 100, "Microsecond, Modify this if you want the tablet to check if tables it takes care of are greater than max cnt more frequently")
+	flag.Parse()
+
+	// check if parameters are legal
+	if *tabletAddress == "" || *masterAddress == "" || *maxTableCnt == 0 {
+		log.Fatal("Please provide tablet address, master address and max shard size via command line")
+	}
+
+	setupOptions := tablet.SetupOptions{
+		TabletAddress: *tabletAddress,
+		MasterAddress: *masterAddress,
+		MaxTableSize:  *maxTableCnt,
+	}
+
+	tabletService, err := tablet.NewTabletService(setupOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	host, port, err := net.SplitHostPort(tabletService.TabletAddress)
+	if err != nil {
+		log.Fatal("Invalid tablet address format:", err)
+	}
+
+	lis, err := net.Listen("tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		log.Fatal("Failed to listen:", err)
+	}
+	log.Printf("TabletService is listening on %s...", tabletService.TabletAddress)
+
+	server := grpc.NewServer()
+	epb.RegisterTabletExternalServiceServer(server, tabletService)
+	ipb.RegisterTabletInternalServiceServer(server, tabletService)
+
+	// Graceful shutdown logic
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Run the server in a goroutine
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve: %v", err)
+		}
+	}()
+
+	go tabletService.PeriodicallyCheckMaxSize(ctx, *checkMaxCntPeriod)
+
+	// Wait for termination signal
+	<-ctx.Done()
+	log.Println("Shutting down server gracefully...")
+
+	//  clean up
+	server.GracefulStop()
+	tabletService.UnRegisterMyself()
+	tabletService.CloseMasterConnection()
+	tabletService.CloseAllTables()
+
+	logrus.Println("Server exited successfully.")
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/cmd/server/master/master_server.go ---
+package main
+
+import (
+	"final/bigtable"
+	epb "final/proto/external-api"
+	ipb "final/proto/internal-api"
+	"flag"
+	"fmt"
+	"google.golang.org/grpc"
+	"log"
+	"net"
+	"time"
+)
+
+func main() {
+	masterAddress := flag.String("master_address", "", "Master service address")
+	flag.Parse()
+
+	if *masterAddress == "" {
+		log.Fatal("Please provide master address to start master server")
+	}
+
+	masterServer := bigtable.NewMasterServer()
+
+	lis, err := net.Listen("tcp", *masterAddress)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("failed to listen on %s: %v", *masterAddress, err))
+	}
+
+	grpcServer := grpc.NewServer()
+	epb.RegisterMasterExternalServiceServer(grpcServer, masterServer)
+	ipb.RegisterMasterInternalServiceServer(grpcServer, masterServer)
+
+	heartbeatInterval := 10 * time.Second
+	heartbeatTimeout := 5 * time.Second
+	go masterServer.MonitorHeartbeats(heartbeatInterval, heartbeatTimeout)
+
+	log.Printf("Master server is running on %s...", *masterAddress)
+
+	if err = grpcServer.Serve(lis); err != nil {
+		log.Fatalf("Failed to serve gRPC server: %v", err)
+	}
+}
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/proto/external-api/external-tablet.proto ---
+syntax = "proto3";
+
+package bigtable;
+
+option go_package = "final/proto";
+
+service TabletExternalService {
+  rpc Read (ReadRequest) returns (ReadResponse);
+  rpc Write (WriteRequest) returns (WriteResponse);
+  rpc Delete (DeleteRequest) returns (DeleteResponse);
+}
+
+message ReadRequest {
+  string table_name = 1;
+  string row_key = 2;
+  string column_family = 3;
+  string column_qualifier = 4;
+  int64 return_version = 5;   // how many version does the need to read (at most MAXVERSION)
+}
+
+message ReadResponse {
+  repeated ValueWithTimestamps values = 1;
+}
+
+message ValueWithTimestamps {
+  int64 timestamp = 1;
+  string value = 2;
+}
+
+message WriteRequest {
+  string table_name = 1;
+  string row_key = 2;
+  string column_family = 3;
+  string column_qualifier = 4;
+  bytes value = 5;
+  int64 timestamp = 6;
+}
+
+message WriteResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message DeleteRequest {
+  string table_name = 1;
+  string row_key = 2;
+  string column_family = 3;
+  string column_qualifier = 4;
+}
+
+message DeleteResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/proto/external-api/external-master.proto ---
+syntax = "proto3";
+
+package bigtable;
+
+option go_package = "final/proto";
+
+service MasterExternalService {
+  rpc CreateTable (CreateTableRequest) returns (CreateTableResponse);
+  rpc DeleteTable (DeleteTableRequest) returns (DeleteTableResponse);
+  rpc GetTabletLocation(GetTabletLocationRequest) returns (GetTabletLocationResponse);
+}
+
+message CreateTableRequest {
+  string table_name = 1;
+  repeated ColumnFamily column_families = 2;
+
+  message ColumnFamily {
+    string family_name = 1;
+    repeated string columns = 2;
+  }
+}
+
+message CreateTableResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteTableRequest {
+  string table_name = 1;
+}
+
+message DeleteTableResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetTabletLocationRequest {
+  string table_name = 1;
+  string key = 2; 
+}
+
+message GetTabletLocationResponse {
+  string tablet_server_address = 1;
+  string tablet_start_row = 2;    // Start of the tablet's row range
+  string tablet_end_row = 3;      // End of the tablet's row range
+}
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/proto/internal-api/internal-master.proto ---
+syntax = "proto3";
+
+package bigtable;
+
+option go_package = "final/proto";
+
+service MasterInternalService {
+  rpc RegisterTablet (RegisterTabletRequest) returns (RegisterTabletResponse);
+  rpc UnregisterTablet (UnregisterTabletRequest) returns (UnregisterTabletResponse);
+
+  rpc NotifyShardRequest(ShardRequest) returns (ShardResponse) {}
+  rpc NotifyShardFinish(ShardFinishNotificationRequest) returns (ShardFinishNotificationResponse) {}
+}
+
+message RegisterTabletRequest {
+  string tablet_address = 1;
+}
+
+message RegisterTabletResponse {}
+
+message UnregisterTabletRequest {
+  string tablet_address = 1;
+}
+
+message UnregisterTabletResponse {}
+
+message ShardRequest {
+  string tablet_address = 1;
+  string table_name = 2;
+}
+
+message ShardResponse {
+  string target_tablet_address = 1;
+}
+
+message ShardFinishNotificationRequest {
+  string table_name = 1;
+  string source = 2;
+  string target = 3;
+//  TabletRowRange source = 2; // include info about row range before and after sharding
+//  TabletRowRange target = 3;
+}
+
+//message TabletRowRange {
+//  string tablet_address = 1;
+//  string row_from = 2;
+//  string row_to = 3;
+//}
+
+message ShardFinishNotificationResponse {}
+
+
+
+--- 文件: /home/yzruan/cpsc426/CS526-Teamwork/final/proto/internal-api/internal-tablet.proto ---
+syntax = "proto3";
+
+package bigtable;
+
+option go_package = "final/proto";
+
+service TabletInternalService {
+    // Table create
+    rpc CreateTable (CreateTableInternalRequest) returns (CreateTableInternalResponse);
+    rpc DeleteTable (DeleteTableInternalRequest) returns (DeleteTableInternalResponse);
+
+    // alive or not
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+    // UpdateShard
+    rpc UpdateShard(UpdateShardRequest) returns (UpdateShardResponse);
+
+    // recover
+    rpc RecoverCrashedTablet(RecoveryRequest) returns (RecoveryResponse);
+}
+
+message CreateTableInternalRequest {
+  string table_name = 1;
+  repeated ColumnFamily column_families = 2;
+
+  message ColumnFamily {
+    string family_name = 1;
+    repeated string columns = 2;
+  }
+}
+
+message CreateTableInternalResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteTableInternalRequest {
+  string table_name = 1;
+}
+
+message DeleteTableInternalResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message HeartbeatRequest {
+  string tablet_server_id = 1;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+}
+
+message UpdateShardRequest {
+  string table_name = 1;
+  string source_tablet_address = 2;
+}
+
+
+message UpdateShardResponse {
+  bool success = 1;
+}
+
+message RecoveryRequest {
+  string crashed_tablet_address = 1;
+  string table_name = 2;
+}
+
+message RecoveryResponse {
+  bool success = 1;
+}
+
