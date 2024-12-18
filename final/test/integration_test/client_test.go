@@ -38,9 +38,13 @@ func TestClientDeleteTable(t *testing.T) {
 	}
 
 	tableName := "users"
-
-	err = client.DeleteTable(tableName)
+	client.
+		err = client.DeleteTable(tableName)
 	if err != nil {
 		log.Fatal(fmt.Printf("Failed to delete table: %v", err))
 	}
+}
+
+func TestClientWrite(t *testing.T) {
+
 }

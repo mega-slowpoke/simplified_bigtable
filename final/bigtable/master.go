@@ -274,7 +274,7 @@ func (ms *MasterServer) UnregisterTablet(ctx context.Context, req *ipb.Unregiste
 
 	_, exists := ms.state.TabletServers[req.TabletAddress]
 	if !exists {
-		msg := fmt.Sprintf("Tablet server '%s' is not registered.", req.TabletAddress)
+		msg := fmt.Sprintf("Tablet server '%s' goes offline.", req.TabletAddress)
 		log.Println(msg)
 		return &ipb.UnregisterTabletResponse{}, nil
 	}

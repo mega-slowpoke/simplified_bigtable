@@ -19,12 +19,12 @@ func main() {
 	// read input
 	tabletAddress := flag.String("tablet_address", "", "Tablet service address")
 	masterAddress := flag.String("master_address", "", "Master service address")
-	maxTableCnt := flag.Int("max_table_cnt", 0, "Max table count")
+	maxTableCnt := flag.Int("max_table_cnt", 5, "Max table count")
 	checkMaxCntPeriod := flag.Int("check_max_period", 100, "Microsecond, Modify this if you want the tablet to check if tables it takes care of are greater than max cnt more frequently")
 	flag.Parse()
 
 	// check if parameters are legal
-	if *tabletAddress == "" || *masterAddress == "" || *maxTableCnt == 0 {
+	if *tabletAddress == "" || *masterAddress == "" {
 		log.Fatal("Please provide tablet address, master address and max shard size via command line")
 	}
 
@@ -48,7 +48,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to listen:", err)
 	}
-	log.Printf("TabletService is listening on %s...", tabletService.TabletAddress)
+	log.Printf("Tablet is listening on %s...", tabletService.TabletAddress)
 
 	server := grpc.NewServer()
 	epb.RegisterTabletExternalServiceServer(server, tabletService)
@@ -65,6 +65,7 @@ func main() {
 		}
 	}()
 
+	tabletService.RegisterMyself()
 	go tabletService.PeriodicallyCheckMaxSize(ctx, *checkMaxCntPeriod)
 
 	// Wait for termination signal
