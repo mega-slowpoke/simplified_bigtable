@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"log"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -48,12 +49,12 @@ type MasterServer struct {
 	epb.UnimplementedMasterExternalServiceServer
 	ipb.UnimplementedMasterInternalServiceServer
 
-	state *MasterState
+	State *MasterState
 }
 
 func NewMasterServer() *MasterServer {
 	return &MasterServer{
-		state: &MasterState{
+		State: &MasterState{
 			Tables:        make(map[string]*Table),
 			TabletServers: make(map[string]*TabletServerInfo),
 		},
@@ -97,10 +98,10 @@ func Make(address string) (func(), error) {
 
 // ExternalMasterService Implementation
 func (ms *MasterServer) CreateTable(ctx context.Context, req *epb.CreateTableRequest) (*epb.CreateTableResponse, error) {
-	ms.state.mu.Lock()
-	defer ms.state.mu.Unlock()
+	ms.State.mu.Lock()
+	defer ms.State.mu.Unlock()
 
-	if _, exists := ms.state.Tables[req.TableName]; exists {
+	if _, exists := ms.State.Tables[req.TableName]; exists {
 		msg := fmt.Sprintf("Table '%s' already exists.", req.TableName)
 		log.Println(msg)
 		return &epb.CreateTableResponse{
@@ -121,14 +122,14 @@ func (ms *MasterServer) CreateTable(ctx context.Context, req *epb.CreateTableReq
 		Tablets:        []*Tablet{},
 	}
 
-	ms.state.Tables[req.TableName] = table
+	ms.State.Tables[req.TableName] = table
 
 	// Assign the entire table to the least loaded tablet server if any are registered
-	if len(ms.state.TabletServers) > 0 {
+	if len(ms.State.TabletServers) > 0 {
 		assignedServer, err := ms.getLeastLoadedTabletServer()
 		if err != nil {
 			// Rollback table creation
-			delete(ms.state.Tables, req.TableName)
+			delete(ms.State.Tables, req.TableName)
 			msg := fmt.Sprintf("Failed to find a tablet server to assign table '%s': %v", req.TableName, err)
 			log.Println(msg)
 			return &epb.CreateTableResponse{
@@ -147,14 +148,14 @@ func (ms *MasterServer) CreateTable(ctx context.Context, req *epb.CreateTableReq
 
 		table.Tablets = append(table.Tablets, tablet)
 
-		ms.state.TabletServers[assignedServer].TabletCount++
+		ms.State.TabletServers[assignedServer].TabletCount++
 
 		// Notify the tablet server to create the table
 		err = ms.notifyTabletCreateTable(assignedServer, table)
 		if err != nil {
 			// Rollback table creation and decrement TabletCount
-			delete(ms.state.Tables, req.TableName)
-			ms.state.TabletServers[assignedServer].TabletCount--
+			delete(ms.State.Tables, req.TableName)
+			ms.State.TabletServers[assignedServer].TabletCount--
 			msg := fmt.Sprintf("Failed to notify tablet server '%s' to create table '%s': %v", assignedServer, req.TableName, err)
 			log.Println(msg)
 			return &epb.CreateTableResponse{
@@ -164,7 +165,7 @@ func (ms *MasterServer) CreateTable(ctx context.Context, req *epb.CreateTableReq
 		}
 	}
 	log.Printf("Table '%s' created successfully.", req.TableName)
-	logrus.Debugf("Create Table Master: %v", ms.state.Tables)
+	logrus.Debugf("Create Table Master: %v", ms.State.Tables)
 	return &epb.CreateTableResponse{
 		Success: true,
 		Message: "Table created successfully.",
@@ -172,10 +173,10 @@ func (ms *MasterServer) CreateTable(ctx context.Context, req *epb.CreateTableReq
 }
 
 func (ms *MasterServer) DeleteTable(ctx context.Context, req *epb.DeleteTableRequest) (*epb.DeleteTableResponse, error) {
-	ms.state.mu.Lock()
-	defer ms.state.mu.Unlock()
+	ms.State.mu.Lock()
+	defer ms.State.mu.Unlock()
 
-	table, exists := ms.state.Tables[req.TableName]
+	table, exists := ms.State.Tables[req.TableName]
 	if !exists {
 		msg := fmt.Sprintf("Table '%s' does not exist.", req.TableName)
 		log.Println(msg)
@@ -197,11 +198,11 @@ func (ms *MasterServer) DeleteTable(ctx context.Context, req *epb.DeleteTableReq
 			}, nil
 		}
 
-		ms.state.TabletServers[tablet.TabletServer].TabletCount--
+		ms.State.TabletServers[tablet.TabletServer].TabletCount--
 	}
 
-	// Remove the table from master state
-	delete(ms.state.Tables, req.TableName)
+	// Remove the table from master State
+	delete(ms.State.Tables, req.TableName)
 
 	log.Printf("Table '%s' deleted successfully.", req.TableName)
 	return &epb.DeleteTableResponse{
@@ -211,12 +212,12 @@ func (ms *MasterServer) DeleteTable(ctx context.Context, req *epb.DeleteTableReq
 }
 
 func (ms *MasterServer) GetTabletLocation(ctx context.Context, req *epb.GetTabletLocationRequest) (*epb.GetTabletLocationResponse, error) {
-	ms.state.mu.RLock()
-	defer ms.state.mu.RUnlock()
+	ms.State.mu.RLock()
+	defer ms.State.mu.RUnlock()
 
-	logrus.Debugf("Get Tablet Location: %v", ms.state.Tables)
+	logrus.Debugf("Get Tablet Location: %v", ms.State.Tables)
 
-	table, exists := ms.state.Tables[req.TableName]
+	table, exists := ms.State.Tables[req.TableName]
 	if !exists {
 		msg := fmt.Sprintf("Table '%s' does not exist.", req.TableName)
 		log.Println(msg)
@@ -250,17 +251,17 @@ func (ms *MasterServer) GetTabletLocation(ctx context.Context, req *epb.GetTable
 
 // InternalMasterService Implementation
 func (ms *MasterServer) RegisterTablet(ctx context.Context, req *ipb.RegisterTabletRequest) (*ipb.RegisterTabletResponse, error) {
-	ms.state.mu.Lock()
-	defer ms.state.mu.Unlock()
+	ms.State.mu.Lock()
+	defer ms.State.mu.Unlock()
 
-	if _, exists := ms.state.TabletServers[req.TabletAddress]; exists {
+	if _, exists := ms.State.TabletServers[req.TabletAddress]; exists {
 		msg := fmt.Sprintf("Tablet server '%s' is already registered.", req.TabletAddress)
 		log.Println(msg)
 		// Even if already registered, respond with success
 		return &ipb.RegisterTabletResponse{}, nil
 	}
 
-	ms.state.TabletServers[req.TabletAddress] = &TabletServerInfo{
+	ms.State.TabletServers[req.TabletAddress] = &TabletServerInfo{
 		Address:        req.TabletAddress,
 		LastHeartbeat:  time.Now(),
 		RegisteredTime: time.Now(),
@@ -272,30 +273,28 @@ func (ms *MasterServer) RegisterTablet(ctx context.Context, req *ipb.RegisterTab
 }
 
 func (ms *MasterServer) UnregisterTablet(ctx context.Context, req *ipb.UnregisterTabletRequest) (*ipb.UnregisterTabletResponse, error) {
-	ms.state.mu.Lock()
-	defer ms.state.mu.Unlock()
+	ms.State.mu.Lock()
+	defer ms.State.mu.Unlock()
 
-	_, exists := ms.state.TabletServers[req.TabletAddress]
+	_, exists := ms.State.TabletServers[req.TabletAddress]
 	if !exists {
 		msg := fmt.Sprintf("Tablet server '%s' goes offline.", req.TabletAddress)
 		log.Println(msg)
 		return &ipb.UnregisterTabletResponse{}, nil
 	}
 
-	// TODO: handle reassigning tablets from the unregistered server
-
 	// Remove the tablet server from the registry
-	delete(ms.state.TabletServers, req.TabletAddress)
+	delete(ms.State.TabletServers, req.TabletAddress)
 	log.Printf("Tablet server '%s' unregistered successfully.", req.TabletAddress)
 
 	return &ipb.UnregisterTabletResponse{}, nil
 }
 
 func (ms *MasterServer) NotifyShardRequest(ctx context.Context, req *ipb.ShardRequest) (*ipb.ShardResponse, error) {
-	ms.state.mu.Lock()
-	defer ms.state.mu.Unlock()
+	ms.State.mu.Lock()
+	defer ms.State.mu.Unlock()
 
-	_, exists := ms.state.Tables[req.TableName]
+	_, exists := ms.State.Tables[req.TableName]
 	if !exists {
 		msg := fmt.Sprintf("ShardRequest: Table '%s' does not exist.", req.TableName)
 		log.Println(msg)
@@ -336,10 +335,10 @@ func (ms *MasterServer) NotifyShardRequest(ctx context.Context, req *ipb.ShardRe
 
 // NotifyShardFinish handles the completion of a shard (tablet transfer)
 func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFinishNotificationRequest) (*ipb.ShardFinishNotificationResponse, error) {
-	ms.state.mu.Lock()
-	defer ms.state.mu.Unlock()
+	ms.State.mu.Lock()
+	defer ms.State.mu.Unlock()
 
-	table, exists := ms.state.Tables[req.TableName]
+	table, exists := ms.State.Tables[req.TableName]
 	if !exists {
 		msg := fmt.Sprintf("ShardFinishNotification: Table '%s' does not exist.", req.TableName)
 		log.Println(msg)
@@ -363,7 +362,7 @@ func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFin
 
 	tablet.TabletServer = req.Target
 
-	if sourceServerInfo, exists := ms.state.TabletServers[req.Source]; exists {
+	if sourceServerInfo, exists := ms.State.TabletServers[req.Source]; exists {
 		if sourceServerInfo.TabletCount > 0 {
 			sourceServerInfo.TabletCount--
 		} else {
@@ -375,7 +374,7 @@ func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFin
 		return nil, errors.New(msg)
 	}
 
-	if targetServerInfo, exists := ms.state.TabletServers[req.Target]; exists {
+	if targetServerInfo, exists := ms.State.TabletServers[req.Target]; exists {
 		targetServerInfo.TabletCount++
 	} else {
 		msg := fmt.Sprintf("ShardFinishNotification: Target tablet server '%s' is not registered.", req.Target)
@@ -390,10 +389,10 @@ func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFin
 }
 
 // func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFinishNotificationRequest) (*ipb.ShardFinishNotificationResponse, error) {
-// 	ms.state.mu.Lock()
-// 	defer ms.state.mu.Unlock()
+// 	ms.State.mu.Lock()
+// 	defer ms.State.mu.Unlock()
 
-// 	table, exists := ms.state.Tables[req.TableName]
+// 	table, exists := ms.State.Tables[req.TableName]
 // 	if !exists {
 // 		msg := fmt.Sprintf("ShardFinishNotification: Table '%s' does not exist.", req.TableName)
 // 		log.Println(msg)
@@ -439,7 +438,7 @@ func (ms *MasterServer) NotifyShardFinish(ctx context.Context, req *ipb.ShardFin
 // 	table.Tablets = append(table.Tablets, newTablet)
 
 // 	// Increment TabletCount for the new shard's tablet server
-// 	if serverInfo, exists := ms.state.TabletServers[newTablet.TabletServer]; exists {
+// 	if serverInfo, exists := ms.State.TabletServers[newTablet.TabletServer]; exists {
 // 		serverInfo.TabletCount++
 // 	} else {
 // 		msg := fmt.Sprintf("ShardFinishNotification: New shard tablet server '%s' is not registered.", newTablet.TabletServer)
@@ -460,12 +459,12 @@ func (ms *MasterServer) MonitorHeartbeats(interval time.Duration, timeout time.D
 
 	for {
 		<-ticker.C
-		ms.state.mu.RLock()
-		servers := make([]*TabletServerInfo, 0, len(ms.state.TabletServers))
-		for _, server := range ms.state.TabletServers {
+		ms.State.mu.RLock()
+		servers := make([]*TabletServerInfo, 0, len(ms.State.TabletServers))
+		for _, server := range ms.State.TabletServers {
 			servers = append(servers, server)
 		}
-		ms.state.mu.RUnlock()
+		ms.State.mu.RUnlock()
 
 		var wg sync.WaitGroup
 		for _, server := range servers {
@@ -502,11 +501,11 @@ func (ms *MasterServer) sendHeartbeat(server *TabletServerInfo, timeout time.Dur
 	}
 
 	// Update the LastHeartbeat timestamp
-	ms.state.mu.Lock()
-	if s, exists := ms.state.TabletServers[server.Address]; exists {
+	ms.State.mu.Lock()
+	if s, exists := ms.State.TabletServers[server.Address]; exists {
 		s.LastHeartbeat = time.Now()
 	}
-	ms.state.mu.Unlock()
+	ms.State.mu.Unlock()
 
 	//log.Printf("Heartbeat successful: Tablet server '%s' is online.", server.Address)
 }
@@ -514,16 +513,16 @@ func (ms *MasterServer) sendHeartbeat(server *TabletServerInfo, timeout time.Dur
 // removeTabletServer removes a tablet server from the registry.
 // removeTabletServer removes a tablet server from the registry and handles tablet reassignment
 func (ms *MasterServer) removeTabletServer(address string) {
-	ms.state.mu.Lock()
-	defer ms.state.mu.Unlock()
+	ms.State.mu.Lock()
+	defer ms.State.mu.Unlock()
 
-	serverInfo, exists := ms.state.TabletServers[address]
+	serverInfo, exists := ms.State.TabletServers[address]
 	if !exists {
 		log.Printf("ShardFinishNotification: Tablet server '%s' is not registered.", address)
 		return
 	}
 
-	for _, table := range ms.state.Tables {
+	for _, table := range ms.State.Tables {
 		for _, tablet := range table.Tablets {
 			if tablet.TabletServer == address {
 				// Find a new tablet server
@@ -543,7 +542,7 @@ func (ms *MasterServer) removeTabletServer(address string) {
 				tablet.TabletServer = newServer
 
 				// Update TabletCount
-				ms.state.TabletServers[newServer].TabletCount++
+				ms.State.TabletServers[newServer].TabletCount++
 				serverInfo.TabletCount--
 
 				log.Printf("Transferred tablet of table '%s' from server '%s' to server '%s'.",
@@ -552,7 +551,7 @@ func (ms *MasterServer) removeTabletServer(address string) {
 		}
 	}
 
-	delete(ms.state.TabletServers, address)
+	delete(ms.State.TabletServers, address)
 	log.Printf("Tablet server '%s' has been removed from the registry.", address)
 }
 
@@ -561,7 +560,7 @@ func (ms *MasterServer) removeTabletServer(address string) {
 func (ms *MasterServer) getLeastLoadedTabletServer() (string, error) {
 	minCount := -1
 	var selectedServer string
-	for addr, serverInfo := range ms.state.TabletServers {
+	for addr, serverInfo := range ms.State.TabletServers {
 		if minCount == -1 || serverInfo.TabletCount < minCount {
 			minCount = serverInfo.TabletCount
 			selectedServer = addr
@@ -577,7 +576,7 @@ func (ms *MasterServer) getLeastLoadedTabletServer() (string, error) {
 func (ms *MasterServer) getLeastLoadedTabletServerExcluding(excludeAddr string) (string, error) {
 	minCount := -1
 	var selectedServer string
-	for addr, serverInfo := range ms.state.TabletServers {
+	for addr, serverInfo := range ms.State.TabletServers {
 		if addr == excludeAddr {
 			continue
 		}
