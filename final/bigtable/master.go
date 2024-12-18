@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"log"
 	"net"
 	"sync"
@@ -164,7 +163,6 @@ func (ms *MasterServer) CreateTable(ctx context.Context, req *epb.CreateTableReq
 		}
 	}
 	log.Printf("Table '%s' created successfully.", req.TableName)
-	logrus.Debugf("Create Table Master: %v", ms.state.Tables)
 	return &epb.CreateTableResponse{
 		Success: true,
 		Message: "Table created successfully.",
@@ -213,8 +211,6 @@ func (ms *MasterServer) DeleteTable(ctx context.Context, req *epb.DeleteTableReq
 func (ms *MasterServer) GetTabletLocation(ctx context.Context, req *epb.GetTabletLocationRequest) (*epb.GetTabletLocationResponse, error) {
 	ms.state.mu.RLock()
 	defer ms.state.mu.RUnlock()
-
-	logrus.Debugf("Get Tablet Location: %v", ms.state.Tables)
 
 	table, exists := ms.state.Tables[req.TableName]
 	if !exists {
@@ -321,7 +317,7 @@ func (ms *MasterServer) NotifyShardRequest(ctx context.Context, req *ipb.ShardRe
 	targetServer, err := ms.getLeastLoadedTabletServerExcluding(req.TabletAddress)
 	if err != nil {
 		msg := fmt.Sprintf("ShardRequest: Failed to find a target tablet server for sharding table '%s': %v", req.TableName, err)
-		log.Println(msg)
+		//logrus.Debugf(msg)
 		return nil, errors.New(msg)
 	}
 
