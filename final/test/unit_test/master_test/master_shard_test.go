@@ -16,6 +16,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -169,7 +170,9 @@ func TestRegisterTablet(t *testing.T) {
 	}
 	defer grpcMockServer.Stop()
 
-	connMasterInternal, err := grpc.Dial(masterAddress, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(2*time.Second))
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	connMasterInternal, err := grpc.NewClient(masterAddress, opts...)
 	if err != nil {
 		t.Fatalf("Failed to dial MasterInternalService: %v", err)
 	}
@@ -217,7 +220,9 @@ func TestCreateTable(t *testing.T) {
 	}
 	defer grpcServer2.Stop()
 
-	connMasterInternal, err := grpc.Dial(masterAddress, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(2*time.Second))
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	connMasterInternal, err := grpc.NewClient(masterAddress, opts...)
 	if err != nil {
 		t.Fatalf("Failed to dial MasterInternalService: %v", err)
 	}
@@ -294,7 +299,9 @@ func TestShardRequest_Success(t *testing.T) {
 	}
 	defer grpcServer2.Stop()
 
-	connMasterInternal, err := grpc.Dial(masterAddress, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(2*time.Second))
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	connMasterInternal, err := grpc.NewClient(masterAddress, opts...)
 	if err != nil {
 		t.Fatalf("Failed to dial MasterInternalService: %v", err)
 	}
@@ -381,7 +388,9 @@ func TestCreateTable_NoAvailableServers(t *testing.T) {
 	}
 	defer grpcMockServer.Stop()
 
-	connMasterInternal, err := grpc.Dial(masterAddress, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(2*time.Second))
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	connMasterInternal, err := grpc.NewClient(masterAddress, opts...)
 	if err != nil {
 		t.Fatalf("Failed to dial MasterInternalService: %v", err)
 	}
