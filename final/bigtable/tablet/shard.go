@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"log"
+	"sort"
 	"strings"
 	"time"
 )
@@ -23,7 +24,11 @@ func (s *TabletServiceServer) PeriodicallyCheckMaxSize(ctx context.Context, peri
 			return
 		default:
 			time.Sleep(time.Microsecond * time.Duration(period))
-			s.checkAndNotifyMasterForShard()
+			err := s.checkAndNotifyMasterForShard()
+			if err != nil {
+				// if shard request fail, backoff for a few minutes
+				time.Sleep(time.Second)
+			}
 		}
 	}
 }
@@ -37,19 +42,20 @@ func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
 
 	client := *(s.MasterClient)
 
-	idx := 0
-	toMoveTables := make([]string, 0)
+	tableList := make([]string, 0)
+
 	// collect tables that will be moved to another tablet
 	for tableName, _ := range s.Tables {
-		if idx >= s.MaxTableCnt {
-			toMoveTables = append(toMoveTables, tableName)
-		}
-		idx++
+		tableList = append(tableList, tableName)
 	}
 
+	sort.Strings(tableList)
+	logrus.Debugf("sorted table list %v:", tableList)
+	toMoveTables := tableList[s.MaxTableCnt:]
 	logrus.Debugf("tables are chosen to be moved %v", toMoveTables)
 
 	for _, tableName := range toMoveTables {
+		s.Tables[tableName].Close() // close db so the move can proceed
 		req := &ipb.ShardRequest{
 			TabletAddress: s.TabletAddress,
 			TableName:     tableName,
@@ -71,11 +77,16 @@ func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
 			return status.Errorf(codes.Internal, "failed to notify tablet server for shard update: %v", err)
 		}
 
+		logrus.Debugf("tablet server shard update: %v finish, next notify master", response.TargetTabletAddress)
+
 		err = s.notifyMasterShardFinished(context.Background(), tableName, response.TargetTabletAddress)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to notify master that shard is done: %v", err)
 		}
 
+		delete(s.Tables, tableName)
+		delete(s.TablesRows, tableName)
+		delete(s.TablesColumns, tableName)
 	}
 	return nil
 }
@@ -139,11 +150,13 @@ func (s *TabletServiceServer) UpdateShard(ctx context.Context, req *ipb.UpdateSh
 	// migrate
 	err := s.MigrateTableToSelf(sourceTabletAddress, tableName)
 	if err != nil {
+		logrus.Debugf("failed to migrate table: %v", err)
 		return &ipb.UpdateShardResponse{
 			Success: false,
 		}, err
 	}
 
+	logrus.Debugf("succeed to migrate table %s from %v to %v", tableName, sourceTabletAddress, s.TabletAddress)
 	return &ipb.UpdateShardResponse{
 		Success: true,
 	}, nil
