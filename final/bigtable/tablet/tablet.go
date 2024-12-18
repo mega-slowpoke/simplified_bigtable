@@ -4,12 +4,14 @@ import (
 	epb "final/proto/external-api"
 	ipb "final/proto/internal-api"
 	"fmt"
+	"log"
+	"sync"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"log"
 )
 
 //tables_rows ={
@@ -53,6 +55,8 @@ type TabletServiceServer struct {
 	MaxTableCnt   int
 	TablesRows    map[string]map[string]struct{}
 	TablesColumns map[string]map[string][]string
+
+	mu sync.RWMutex
 }
 
 func NewTabletService(opt SetupOptions) (*TabletServiceServer, error) {

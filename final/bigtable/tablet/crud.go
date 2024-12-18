@@ -29,7 +29,7 @@ func (s *TabletServiceServer) CreateTable(ctx context.Context, req *ipb.CreateTa
 	if exist {
 		return nil, status.Error(codes.AlreadyExists, "table already exists")
 	}
-	// : is not allowed in the file path
+
 	dbPath := GetFilePath(s.TabletAddress, tableName)
 	db, err := leveldb.OpenFile(dbPath, nil)
 	if err != nil {
@@ -38,20 +38,24 @@ func (s *TabletServiceServer) CreateTable(ctx context.Context, req *ipb.CreateTa
 		}, nil
 	}
 
-	// update table Map
+	// Lock for writing
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Update table map
 	s.Tables[tableName] = db
 
 	// Initialize TablesRows for the new table
 	s.TablesRows[tableName] = make(map[string]struct{})
 
-	// update table columns info
+	// Update table columns info
 	s.TablesColumns[tableName] = make(map[string][]string)
 	columnFamilyMap := s.TablesColumns[tableName]
 	for _, columnFamily := range req.ColumnFamilies {
 		columnFamilyMap[columnFamily.FamilyName] = columnFamily.Columns
 	}
 
-	// persist metadata row so they can be recovered when the server crashes
+	// Persist metadata
 	err = WriteMetaDataToPersistent("column", columnFamilyMap, db)
 	if err != nil {
 		return nil, err
@@ -109,7 +113,11 @@ func (s *TabletServiceServer) DeleteTable(ctx context.Context, req *ipb.DeleteTa
 func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) (*proto.ReadResponse, error) {
 	prefix := fmt.Sprintf("%s:%s:%s:", req.RowKey, req.ColumnFamily, req.ColumnQualifier)
 	tableName := req.TableName
+
+	// Lock for reading Tables
+	s.mu.RLock()
 	tableFile, ok := s.Tables[tableName]
+	s.mu.RUnlock()
 	if !ok {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
 	}
@@ -119,7 +127,7 @@ func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) 
 
 	var allValues []ValueWithKeyAndTimestamps
 
-	// collect all versions
+	// Collect all versions
 	for iter.Next() {
 		key := string(iter.Key())
 		value := string(iter.Value())
@@ -132,19 +140,19 @@ func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) 
 		allValues = append(allValues, ValueWithKeyAndTimestamps{
 			Timestamp: timestamp,
 			Value:     value,
-			Key:       key, // store key for later delete
+			Key:       key, // Store key for later delete
 		})
 	}
 
-	// sort array
+	// Sort by descending timestamp
 	sort.Slice(allValues, func(i, j int) bool {
 		return allValues[i].Timestamp > allValues[j].Timestamp
 	})
 
-	// TODO: make it configurable
+	// Keep only the most recent 3 versions
 	maxVersion := 3
 	if len(allValues) > maxVersion {
-		// delete the old versions
+		// Delete old versions
 		for i := maxVersion; i < len(allValues); i++ {
 			deleteErr := tableFile.Delete([]byte(allValues[i].Key), nil)
 			if deleteErr != nil {
@@ -157,7 +165,7 @@ func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) 
 
 	var returnValues []*proto.ValueWithTimestamps
 	for i := 0; i < len(allValues); i++ {
-		if i == int(req.ReturnVersion) {
+		if int64(i) == req.ReturnVersion {
 			break
 		}
 
@@ -173,22 +181,35 @@ func (s *TabletServiceServer) Read(ctx context.Context, req *proto.ReadRequest) 
 func (s *TabletServiceServer) Write(ctx context.Context, req *proto.WriteRequest) (*proto.WriteResponse, error) {
 	key := BuildKey(req.RowKey, req.ColumnFamily, req.ColumnQualifier, req.Timestamp)
 	tableName := req.TableName
+
+	// Lock for reading Tables
+	s.mu.RLock()
 	tableFile, ok := s.Tables[tableName]
+	s.mu.RUnlock()
 	if !ok {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
 	}
 
+	// Write to LevelDB
 	err := tableFile.Put([]byte(key), req.Value, nil)
 	if err != nil {
 		log.Printf("Failed to write to LevelDB: %v\n", err)
 		return &proto.WriteResponse{Success: false}, err
 	}
 
-	// update row info: persist metadata row so they can be recovered when the server crashes
-	rowSet := s.TablesRows[tableName]
-	_, exist := rowSet[req.RowKey]
-	if !exist {
-		// if this row doesn't exist before, add to the set and update persistent
+	// Update row info with write lock
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rowSet, exists := s.TablesRows[tableName]
+	if !exists {
+		// Initialize if not present
+		rowSet = make(map[string]struct{})
+		s.TablesRows[tableName] = rowSet
+	}
+
+	if _, exist := rowSet[req.RowKey]; !exist {
+		// Add new row key
 		rowSet[req.RowKey] = struct{}{}
 		err = WriteMetaDataToPersistent("row", rowSet, tableFile)
 		if err != nil {
@@ -201,15 +222,17 @@ func (s *TabletServiceServer) Write(ctx context.Context, req *proto.WriteRequest
 
 func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteRequest) (*proto.DeleteResponse, error) {
 	prefix := fmt.Sprintf("%s:%s:%s:", req.RowKey, req.ColumnFamily, req.ColumnQualifier)
-
-	// check if table exists
 	tableName := req.TableName
+
+	// Lock for reading Tables
+	s.mu.RLock()
 	tableFile, ok := s.Tables[tableName]
+	s.mu.RUnlock()
 	if !ok {
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("Table %s not found", tableName))
 	}
 
-	// iterate over all keys
+	// Iterate over all keys
 	iter := tableFile.NewIterator(util.BytesPrefix([]byte(prefix)), nil)
 	defer iter.Release()
 	var keysToDelete []string
@@ -222,7 +245,7 @@ func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteReque
 		return nil, status.Error(codes.NotFound, fmt.Sprintf("No value found for key %s", req.RowKey))
 	}
 
-	// delete all keys
+	// Delete all keys
 	for _, key := range keysToDelete {
 		deleteErr := tableFile.Delete([]byte(key), nil)
 		if deleteErr != nil {
@@ -230,8 +253,17 @@ func (s *TabletServiceServer) Delete(ctx context.Context, req *proto.DeleteReque
 		}
 	}
 
-	// update row info: persist metadata row so they can be recovered when the server crashes
-	rowSet := s.TablesRows[tableName]
+	// Update row info with write lock
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rowSet, exists := s.TablesRows[tableName]
+	if !exists {
+		// Initialize if not present
+		rowSet = make(map[string]struct{})
+		s.TablesRows[tableName] = rowSet
+	}
+
 	delete(rowSet, req.RowKey)
 	err := WriteMetaDataToPersistent("row", rowSet, tableFile)
 	if err != nil {
