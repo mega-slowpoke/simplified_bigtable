@@ -14,6 +14,7 @@ service MasterInternalService {
 
 message RegisterTabletRequest {
   string tablet_address = 1;
+  int32 max_table_cnt = 2;
 }
 
 message RegisterTabletResponse {}

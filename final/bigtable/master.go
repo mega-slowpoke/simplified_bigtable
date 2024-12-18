@@ -31,6 +31,7 @@ type TabletServerInfo struct {
 	LastHeartbeat  time.Time
 	RegisteredTime time.Time
 	TabletCount    int // Number of tablets assigned to this server
+	MaxTableCount  int
 }
 
 type Table struct {
@@ -266,6 +267,7 @@ func (ms *MasterServer) RegisterTablet(ctx context.Context, req *ipb.RegisterTab
 		LastHeartbeat:  time.Now(),
 		RegisteredTime: time.Now(),
 		TabletCount:    0, // Initialize TabletCount to zero
+		MaxTableCount:  int(req.MaxTableCnt),
 	}
 
 	log.Printf("Tablet server '%s' registered successfully.", req.TabletAddress)
@@ -581,8 +583,10 @@ func (ms *MasterServer) getLeastLoadedTabletServerExcluding(excludeAddr string) 
 			continue
 		}
 		if minCount == -1 || serverInfo.TabletCount < minCount {
-			minCount = serverInfo.TabletCount
-			selectedServer = addr
+			if serverInfo.TabletCount < serverInfo.MaxTableCount {
+				minCount = serverInfo.TabletCount
+				selectedServer = addr
+			}
 		}
 	}
 	if selectedServer == "" {

@@ -8,6 +8,7 @@ import (
 func (s *TabletServiceServer) RegisterMyself() error {
 	request := &ipb.RegisterTabletRequest{
 		TabletAddress: s.TabletAddress,
+		MaxTableCnt:   int32(s.MaxTableCnt),
 	}
 
 	_, err := (*s.MasterClient).RegisterTablet(context.Background(), request)
