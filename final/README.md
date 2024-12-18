@@ -25,9 +25,11 @@
       - GetTabletLocation
         
 ## Instruction to reproduce the demo
+All LevelDB file will be stored in cmd/server/tablet
+
 1. Just follow the video to start master server and tablet server with compiled file in the cmd/server
 2. You can run test/client_test.go to do the client createTable/deleteTable/read/write/delete. You can create you own tests
-3. if you want to reproduce sharding:
+3. if you want to reproduce sharding: 
    - Start a server and a tablet server (start only one tablet in the beginning, otherwise you might run into problems caused by LevelDB SDK version incompatibility) 
    - Uncomment "TestClientShard" in the client_test.go, this is used to create many tables, you can change the data
    - Now You can start more tablets one by one (as many as you want), you will see how extra tables be moved to available tablet severs
