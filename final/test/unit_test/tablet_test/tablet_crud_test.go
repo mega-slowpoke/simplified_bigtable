@@ -165,10 +165,10 @@ func TestTabletSingleWrite(t *testing.T) {
 	timeNow := time.Now().UnixNano()
 	writeRequest := &proto.WriteRequest{
 		TableName:       TEST_TABLE_NAME,
-		RowKey:          "row3",
+		RowKey:          "row2",
 		ColumnFamily:    "cf1",
 		ColumnQualifier: "col1",
-		Value:           []byte("row3"),
+		Value:           []byte("row2"),
 		Timestamp:       timeNow,
 	}
 	_, writeErr := server.Write(ctx, writeRequest)

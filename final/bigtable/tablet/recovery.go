@@ -53,23 +53,29 @@ func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tab
 		logrus.Debugf("create table for recovery server failed: %v", err)
 		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
 	}
-	s.Tables[tableName] = db
-
 	err = s.rebuildColumnsMetadata(db)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to rebuild columns metadata: %v", err)
 	}
+	db.Close() // close the db first so that the recoverData can access data
 
-	err = s.rebuildRowsMetadata(db)
+	db, err = leveldb.OpenFile(dbPath, nil)
+	if err != nil {
+		logrus.Debugf("create table for recovery server failed: %v", err)
+		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
+	}
+
+	err = s.rebuildRowMetadata(db)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to rebuild rows metadata: %v", err)
 	}
+	db.Close() // close the db first so that the recoverData can access data
 
 	logrus.Info(fmt.Sprintf("Recovery completed successfully for: %s - %s, data is moved to %s", sourceServerAddress, tableName, s.TabletAddress))
 	return nil
 }
 
-func (s *TabletServiceServer) rebuildColumnsMetadata(db *leveldb.DB) error {
+func (s *TabletServiceServer) rebuildRowMetadata(db *leveldb.DB) error {
 	data, err := db.Get([]byte("meta_row"), nil)
 	if err != nil {
 		logrus.Fatalf("Read from LevelDB failed: %v", err)
@@ -87,7 +93,7 @@ func (s *TabletServiceServer) rebuildColumnsMetadata(db *leveldb.DB) error {
 	return nil
 }
 
-func (s *TabletServiceServer) rebuildRowsMetadata(db *leveldb.DB) error {
+func (s *TabletServiceServer) rebuildColumnsMetadata(db *leveldb.DB) error {
 	data, err := db.Get([]byte("meta_column"), nil)
 	if err != nil {
 		logrus.Fatalf("Read from LevelDB failed: %v", err)
@@ -129,12 +135,14 @@ func moveDir(sourceDir, destDir string) error {
 	// Remove destination directory if it already exists
 	if _, err := os.Stat(destDir); err == nil {
 		if err = os.RemoveAll(destDir); err != nil {
+			logrus.Debugf("failed to remove existing destination directory: %v", err)
 			return fmt.Errorf("failed to remove existing destination directory: %v", err)
 		}
 	}
 
 	// Move directory
 	if err := os.Rename(sourceDir, destDir); err != nil {
+		logrus.Debugf("os.Rename fails: %v", err)
 		return err
 	}
 	return nil
