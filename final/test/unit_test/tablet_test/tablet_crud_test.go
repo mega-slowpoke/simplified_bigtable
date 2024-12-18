@@ -13,32 +13,9 @@ import (
 	"time"
 )
 
-// setup before each test
-//
-//	func TestMain(m *testing.M) {
-//		var err error
-//		// Clean up previous database files if any
-//		os.RemoveAll("testdb")
-//
-//		// Open a fresh LevelDB instance
-//		db, err = leveldb.OpenFile("testdb", nil)
-//		if err != nil {
-//			log.Fatalf("Failed to open LevelDB: %v", err)
-//		}
-//		// Ensure the database is properly closed after the tests
-//		defer db.Close()
-//
-//		// Run the tests
-//		code := m.Run()
-//
-//		// Clean up the database directory after the tests
-//		os.RemoveAll("testdb")
-//		os.Exit(code)
-//	}
-
 const (
-	TABLET_ADDRESS  = "localhost:9001"
-	MASTER_ADDRESS  = "localhost:10000"
+	TABLET_ADDRESS  = "TEST_ADDRESS"
+	MASTER_ADDRESS  = "localhost:9000"
 	TEST_TABLE_NAME = "testdb"
 )
 
@@ -47,10 +24,25 @@ func TestCreateTable(t *testing.T) {
 		TabletAddress: TABLET_ADDRESS,
 		MasterAddress: MASTER_ADDRESS,
 		Tables:        make(map[string]*leveldb.DB),
+		TablesRows:    make(map[string]map[string]struct{}),
+		TablesColumns: make(map[string]map[string][]string),
+	}
+
+	columnf := map[string][]string{
+		"profile": {"name", "email", "phone", "age"},
+	}
+
+	var cfMsgs []*ipb.CreateTableInternalRequest_ColumnFamily
+	for family, columns := range columnf {
+		cfMsgs = append(cfMsgs, &ipb.CreateTableInternalRequest_ColumnFamily{
+			FamilyName: family,
+			Columns:    columns,
+		})
 	}
 
 	req := ipb.CreateTableInternalRequest{
-		TableName: TEST_TABLE_NAME,
+		TableName:      TEST_TABLE_NAME,
+		ColumnFamilies: cfMsgs,
 	}
 
 	_, err := server.CreateTable(context.Background(), &req)
@@ -82,6 +74,7 @@ func TestCreateDuplicateTable(t *testing.T) {
 	if err == nil {
 		log.Fatal(fmt.Sprintf("Table exists, You shouldn't create duplicate table %v", err))
 	}
+
 }
 
 func TestDeleteTable(t *testing.T) {
@@ -164,16 +157,18 @@ func TestTabletSingleWrite(t *testing.T) {
 		Tables: map[string]*leveldb.DB{
 			TEST_TABLE_NAME: db,
 		},
+		TablesRows:    make(map[string]map[string]struct{}),
+		TablesColumns: make(map[string]map[string][]string),
 	}
 
 	ctx := context.Background()
 	timeNow := time.Now().UnixNano()
 	writeRequest := &proto.WriteRequest{
 		TableName:       TEST_TABLE_NAME,
-		RowKey:          "row1",
+		RowKey:          "row3",
 		ColumnFamily:    "cf1",
 		ColumnQualifier: "col1",
-		Value:           []byte("write1"),
+		Value:           []byte("row3"),
 		Timestamp:       timeNow,
 	}
 	_, writeErr := server.Write(ctx, writeRequest)

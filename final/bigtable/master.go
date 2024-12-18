@@ -320,7 +320,7 @@ func (ms *MasterServer) NotifyShardRequest(ctx context.Context, req *ipb.ShardRe
 	targetServer, err := ms.getLeastLoadedTabletServerExcluding(req.TabletAddress)
 	if err != nil {
 		msg := fmt.Sprintf("ShardRequest: Failed to find a target tablet server for sharding table '%s': %v", req.TableName, err)
-		log.Println(msg)
+		//logrus.Debugf(msg)
 		return nil, errors.New(msg)
 	}
 

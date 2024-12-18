@@ -35,9 +35,11 @@ func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tab
 	dbPath := GetFilePath(s.TabletAddress, tableName)
 	db, err := leveldb.OpenFile(dbPath, nil)
 	if err != nil {
+		logrus.Debugf("create table for recovery server failed: %v", err)
 		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
 	}
 	s.Tables[tableName] = db
+	db.Close() // close the db first so that the recoverData can access data
 
 	// move data (table contents and metadata) from "sourceServerAddress/tableName" to "s.TabletAddress/tableName"
 	err = s.recoverData(sourceServerAddress, tableName)
@@ -46,6 +48,13 @@ func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tab
 	}
 
 	// recover metadata first
+	db, err = leveldb.OpenFile(dbPath, nil)
+	if err != nil {
+		logrus.Debugf("create table for recovery server failed: %v", err)
+		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
+	}
+	s.Tables[tableName] = db
+
 	err = s.rebuildColumnsMetadata(db)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to rebuild columns metadata: %v", err)
@@ -129,18 +138,42 @@ func moveDir(sourceDir, destDir string) error {
 		return err
 	}
 	return nil
-}
 
-//// moveFile - Utility function to move a file
-//func moveFile(sourcePath, destPath string) error {
-//	// Ensure destination directory exists
-//	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
-//		return err
-//	}
-//
-//	// Move file
-//	if err := os.Rename(sourcePath, destPath); err != nil {
-//		return err
-//	}
-//	return nil
-//}
+	////
+	//err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+	//	if err != nil {
+	//		return err
+	//	}
+	//	relativePath, err := filepath.Rel(sourceDir, path)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	destFilePath := filepath.Join(destDir, relativePath)
+	//	if info.IsDir() {
+	//		return os.MkdirAll(destFilePath, info.Mode())
+	//	}
+	//	data, err := os.ReadFile(path)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	return os.WriteFile(destFilePath, data, info.Mode())
+	//})
+	//if err != nil {
+	//	return fmt.Errorf("failed to copy LevelDB data: %v", err)
+	//}
+
+	//db, ok := s.Tables[tableName]
+	//if ok {
+	//	err := db.Close()
+	//	if err != nil {
+	//		return fmt.Errorf("failed to close LevelDB file: %v", err)
+	//	}
+	//}
+	//
+	//// 3.
+	//if err := os.RemoveAll(sourceDataPath); err != nil {
+	//	return fmt.Errorf("failed to remove source LevelDB data directory: %v", err)
+	//}
+	//return nil
+	return nil
+}

@@ -96,14 +96,14 @@ func NewClient(masterAddress string) (*Client, error) {
 func (c *Client) Close() {
 	if c.masterConn != nil {
 		c.masterConn.Close()
-		log.Println("Closed connection to master server.")
+		log.Println("Client closed connection to master server.")
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for addr, conn := range c.tabletConns {
 		if conn != nil {
 			conn.Close()
-			log.Printf("Closed connection to tablet server: %s", addr)
+			log.Printf("Client closed connection to tablet server: %s", addr)
 		}
 	}
 }

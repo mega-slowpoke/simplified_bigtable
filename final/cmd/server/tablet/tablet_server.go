@@ -16,6 +16,7 @@ import (
 )
 
 func main() {
+	logrus.SetLevel(logrus.DebugLevel)
 	// read input
 	tabletAddress := flag.String("tablet_address", "", "Tablet service address")
 	masterAddress := flag.String("master_address", "", "Master service address")

@@ -4,11 +4,13 @@ import (
 	"context"
 	ipb "final/proto/internal-api"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -45,6 +47,8 @@ func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
 		idx++
 	}
 
+	logrus.Debugf("tables are chosen to be moved %v", toMoveTables)
+
 	for _, tableName := range toMoveTables {
 		req := &ipb.ShardRequest{
 			TabletAddress: s.TabletAddress,
@@ -53,9 +57,15 @@ func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
 
 		response, err := client.NotifyShardRequest(context.Background(), req)
 		if err != nil {
-			log.Printf("failed to notify master for shard request: %v", err)
+			// it means no available tablet to move the shard, stop sharding
+			if strings.Contains(err.Error(), "no tablet servers available excluding the specified server") {
+				//logrus.Debugf("failed to notify master for shard request because no other tablet servers available")
+				return nil
+			}
+			logrus.Infof("failed to notify master for shard request because of master/tablet failure: %v", err)
 		}
 
+		logrus.Debugf("get target tablet, try to ask it to move table %v", response.TargetTabletAddress)
 		err = s.notifyTabletServerForShardUpdate(tableName, response.TargetTabletAddress)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to notify tablet server for shard update: %v", err)
@@ -66,25 +76,6 @@ func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
 			return status.Errorf(codes.Internal, "failed to notify master that shard is done: %v", err)
 		}
 
-		//for tableName := range s.TablesRows {
-		//	if len(tablesRows[tableName]) >= s.MaxTableCnt {
-		//		rowKeys := make([]string, len(tablesRows[tableName]))
-		//		copy(rowKeys, tablesRows[tableName])
-		//		sort.Strings(rowKeys) // TODO: check the sort? sort by what
-		//
-		//		shardRowKeys := rowKeys[:s.MaxTableCnt/2+1]
-		//		remainingRowKeys := rowKeys[s.MaxTableCnt/2:]
-		//
-		//		req := &ipb.ShardRequest{
-		//			TabletAddress: s.TabletAddress,
-		//			TableName:     tableName,
-		//		}
-		//
-		//		_, err := client.NotifyShardRequest(context.Background(), req)
-		//		if err != nil {
-		//			log.Printf("failed to notify master for shard request: %v", err)
-		//		}
-		//	}
 	}
 	return nil
 }
@@ -126,7 +117,6 @@ func (s *TabletServiceServer) notifyTabletServerForShardUpdate(tableName string,
 	}
 
 	if response.Success {
-		// TODO: (Test This) shard is done, we need to delete the table path in the original server address
 		// IMPORTANT: it has to be deleted after the migration is done, otherwise the migration cannot read the file
 		deleteReq := &ipb.DeleteTableInternalRequest{
 			TableName: tableName,
