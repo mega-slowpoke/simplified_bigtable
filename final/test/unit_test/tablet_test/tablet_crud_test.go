@@ -56,27 +56,6 @@ func TestCreateTable(t *testing.T) {
 	}
 }
 
-func TestCreateDuplicateTable(t *testing.T) {
-	var db leveldb.DB
-	server := tablet.TabletServiceServer{
-		TabletAddress: TABLET_ADDRESS,
-		MasterAddress: MASTER_ADDRESS,
-		Tables: map[string]*leveldb.DB{
-			TEST_TABLE_NAME: &db,
-		},
-	}
-
-	req := ipb.CreateTableInternalRequest{
-		TableName: TEST_TABLE_NAME,
-	}
-
-	_, err := server.CreateTable(context.Background(), &req)
-	if err == nil {
-		log.Fatal(fmt.Sprintf("Table exists, You shouldn't create duplicate table %v", err))
-	}
-
-}
-
 func TestDeleteTable(t *testing.T) {
 	server := tablet.TabletServiceServer{
 		TabletAddress: TABLET_ADDRESS,

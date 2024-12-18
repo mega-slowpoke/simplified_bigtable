@@ -53,7 +53,8 @@ func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tab
 		logrus.Debugf("create table for recovery server failed: %v", err)
 		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
 	}
-	err = s.rebuildColumnsMetadata(db)
+	metadataColumns, err := s.rebuildColumnsMetadata(db)
+	s.TablesColumns[tableName] = metadataColumns
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to rebuild columns metadata: %v", err)
 	}
@@ -65,7 +66,8 @@ func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tab
 		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
 	}
 
-	err = s.rebuildRowMetadata(db)
+	metadataRows, err := s.rebuildRowMetadata(db)
+	s.TablesRows[tableName] = metadataRows
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to rebuild rows metadata: %v", err)
 	}
@@ -75,7 +77,7 @@ func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tab
 	return nil
 }
 
-func (s *TabletServiceServer) rebuildRowMetadata(db *leveldb.DB) error {
+func (s *TabletServiceServer) rebuildRowMetadata(db *leveldb.DB) (map[string]struct{}, error) {
 	data, err := db.Get([]byte("meta_row"), nil)
 	if err != nil {
 		logrus.Fatalf("Read from LevelDB failed: %v", err)
@@ -85,15 +87,16 @@ func (s *TabletServiceServer) rebuildRowMetadata(db *leveldb.DB) error {
 	var restoredRowSet map[string]struct{}
 	decoder := gob.NewDecoder(bytes.NewReader(data))
 	if err = decoder.Decode(&restoredRowSet); err != nil {
-		log.Fatal("Decode failed:", err)
+		log.Fatal("rebuild row decode failed:", err)
+		return nil, err
 	}
 
 	// just to check restored row set data when debugging
 	logrus.Debug("Restored Set: %v", restoredRowSet)
-	return nil
+	return restoredRowSet, nil
 }
 
-func (s *TabletServiceServer) rebuildColumnsMetadata(db *leveldb.DB) error {
+func (s *TabletServiceServer) rebuildColumnsMetadata(db *leveldb.DB) (map[string][]string, error) {
 	data, err := db.Get([]byte("meta_column"), nil)
 	if err != nil {
 		logrus.Fatalf("Read from LevelDB failed: %v", err)
@@ -103,12 +106,12 @@ func (s *TabletServiceServer) rebuildColumnsMetadata(db *leveldb.DB) error {
 	var restoredColumnFamilies map[string][]string
 	decoder := gob.NewDecoder(bytes.NewReader(data))
 	if err = decoder.Decode(&restoredColumnFamilies); err != nil {
-		return status.Errorf(codes.Internal, "decoder failed: %v", err)
+		return nil, status.Errorf(codes.Internal, "rebuild column decoder failed: %v", err)
 	}
 
 	// just to check restored row set data when debugging
 	logrus.Debug("Restored ColumnFamilies: %v", restoredColumnFamilies)
-	return nil
+	return restoredColumnFamilies, nil
 }
 
 // recoverActualData - mimic moving data in crashedServerAddress to current tablet server

@@ -285,5 +285,23 @@ func WriteMetaDataToPersistent(metadataType string, data interface{}, db *leveld
 		log.Fatal(fmt.Sprintf("Persist %s to LevelDB failed: %v", metadataType, err))
 	}
 
+	dataFromDB, _ := db.Get([]byte(fmt.Sprintf("meta_%s", metadataType)), nil)
+
+	if metadataType == "row" {
+		var restoredData map[string]struct{}
+		decoder := gob.NewDecoder(bytes.NewReader(dataFromDB))
+		if err = decoder.Decode(&restoredData); err != nil {
+			log.Fatal("Decode failed:", err)
+		}
+		log.Printf("%v", restoredData)
+	} else if metadataType == "column" {
+		var restoredData map[string][]string
+		decoder := gob.NewDecoder(bytes.NewReader(dataFromDB))
+		if err = decoder.Decode(&restoredData); err != nil {
+			log.Fatal("Decode failed:", err)
+		}
+		log.Printf("%v", restoredData)
+	}
+
 	return nil
 }

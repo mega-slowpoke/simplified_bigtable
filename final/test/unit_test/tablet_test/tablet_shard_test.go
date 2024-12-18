@@ -26,6 +26,8 @@ func TestMigrate(t *testing.T) {
 		TabletAddress: RECOVER_ADDRESS,
 		MasterAddress: MASTER_ADDRESS,
 		Tables:        make(map[string]*leveldb.DB),
+		TablesRows:    make(map[string]map[string]struct{}),
+		TablesColumns: make(map[string]map[string][]string),
 	}
 
 	SOURCE_TABLE_ADDRESS := TABLET_ADDRESS
