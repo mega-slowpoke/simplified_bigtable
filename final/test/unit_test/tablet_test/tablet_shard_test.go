@@ -7,7 +7,7 @@ import (
 	ipb "final/proto/internal-api"
 	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
-	"path/filepath"
+	"log"
 	"testing"
 	"time"
 )
@@ -18,15 +18,29 @@ const (
 	TEST_TABLE_NAME = "testdb"
 )
 
+func TestMigrate(t *testing.T) {
+	RECOVER_ADDRESS := "RECOVER_ADDRESS"
+	TEST_TABLE_NAME := "testdb"
+
+	server := tablet.TabletServiceServer{
+		TabletAddress: RECOVER_ADDRESS,
+		MasterAddress: MASTER_ADDRESS,
+		Tables:        make(map[string]*leveldb.DB),
+	}
+
+	SOURCE_TABLE_ADDRESS := TABLET_ADDRESS
+	server.MigrateTableToSelf(SOURCE_TABLE_ADDRESS, TEST_TABLE_NAME)
+
+	log.Printf("restored rows : %v", server.TablesRows)
+	log.Printf("restored columns : %v", server.TablesColumns)
+}
+
 func TestRecoverWrite(t *testing.T) {
-	db, _ := leveldb.OpenFile(filepath.Join(TABLET_ADDRESS, TEST_TABLE_NAME), nil)
 
 	server := tablet.TabletServiceServer{
 		TabletAddress: TABLET_ADDRESS,
 		MasterAddress: MASTER_ADDRESS,
-		Tables: map[string]*leveldb.DB{
-			TEST_TABLE_NAME: db,
-		},
+		Tables:        map[string]*leveldb.DB{},
 		TablesRows:    make(map[string]map[string]struct{}),
 		TablesColumns: make(map[string]map[string][]string),
 	}
@@ -110,19 +124,4 @@ func TestRecoverWrite(t *testing.T) {
 	if writeErr != nil {
 		t.Fatal(fmt.Sprintf("Failed to write to LevelDB: %v", writeErr))
 	}
-}
-
-func TestMigrate(t *testing.T) {
-	RECOVER_ADDRESS := "RECOVER_ADDRESS"
-	TEST_TABLE_NAME := "testdb"
-
-	server := tablet.TabletServiceServer{
-		TabletAddress: RECOVER_ADDRESS,
-		MasterAddress: MASTER_ADDRESS,
-		Tables:        make(map[string]*leveldb.DB),
-	}
-
-	SOURCE_TABLE_ADDRESS := TABLET_ADDRESS
-	server.MigrateTableToSelf(SOURCE_TABLE_ADDRESS, TEST_TABLE_NAME)
-
 }
