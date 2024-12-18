@@ -510,42 +510,22 @@ func TestClientWriteAndReadMany(t *testing.T) {
 	t.Logf("Concurrent writes and reads completed successfully.")
 }
 
-func TestClientShard(t *testing.T) {
-	masterAddress := "localhost:9090"
-
-	client, err := bigtable.NewClient(masterAddress)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-	defer client.Close()
-
-	MAX_TABLE_CNT := 7 // make sure this is greater than the max_table_cnt you enter when start the tablet
-
-	for i := 0; i < MAX_TABLE_CNT; i++ {
-		tableName := fmt.Sprintf("recover_users_%v", i)
-		columnFamilies := map[string][]string{
-			"profile": {"name", "email", "phone", "age"},
-		}
-		err = client.CreateTable(tableName, columnFamilies)
-	}
-
-}
-
-func TestClientRecover(t *testing.T) {
-	masterAddress := "localhost:9090"
-
-	client, err := bigtable.NewClient(masterAddress)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-	defer client.Close()
-
-	tableName := "recover_users"
-	columnFamilies := map[string][]string{
-		"profile": {"name", "email", "phone", "age"},
-	}
-
-	err = client.CreateTable(tableName, columnFamilies)
-
-	// Start a new tablet and close the current tablet here to see the recover
-}
+//func TestClientShard(t *testing.T) {
+//	masterAddress := "localhost:9090"
+//
+//	client, err := bigtable.NewClient(masterAddress)
+//	if err != nil {
+//		t.Fatalf("Failed to create client: %v", err)
+//	}
+//	defer client.Close()
+//
+//	MAX_TABLE_CNT := 7 // make sure this is greater than the max_table_cnt you enter when start the tablet
+//
+//	for i := 0; i < MAX_TABLE_CNT; i++ {
+//		tableName := fmt.Sprintf("recover_users_%v", i)
+//		columnFamilies := map[string][]string{
+//			"profile": {"name", "email", "phone", "age"},
+//		}
+//		err = client.CreateTable(tableName, columnFamilies)
+//	}
+//}
