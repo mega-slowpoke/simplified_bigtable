@@ -285,7 +285,9 @@ func (ms *MasterServer) UnregisterTablet(ctx context.Context, req *ipb.Unregiste
 		return &ipb.UnregisterTabletResponse{}, nil
 	}
 
-	// Remove the tablet server from the registry
+	//ms.removeTabletServer(req.TabletAddress, true)
+
+	//Remove the tablet server from the registry
 	delete(ms.State.TabletServers, req.TabletAddress)
 	log.Printf("Tablet server '%s' unregistered successfully.", req.TabletAddress)
 
@@ -485,7 +487,7 @@ func (ms *MasterServer) sendHeartbeat(server *TabletServerInfo, timeout time.Dur
 	conn, err := grpc.NewClient(server.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Printf("Heartbeat failed: Unable to connect to tablet server '%s': %v. Removing server.", server.Address, err)
-		ms.removeTabletServer(server.Address)
+		ms.removeTabletServer(server.Address, false)
 		return
 	}
 	defer conn.Close()
@@ -498,7 +500,7 @@ func (ms *MasterServer) sendHeartbeat(server *TabletServerInfo, timeout time.Dur
 	resp, err := client.Heartbeat(ctx, &ipb.HeartbeatRequest{})
 	if err != nil || !resp.Success {
 		log.Printf("Heartbeat failed: Tablet server '%s' did not respond successfully: %v. Removing server.", server.Address, err)
-		ms.removeTabletServer(server.Address)
+		ms.removeTabletServer(server.Address, false)
 		return
 	}
 
@@ -514,7 +516,7 @@ func (ms *MasterServer) sendHeartbeat(server *TabletServerInfo, timeout time.Dur
 
 // removeTabletServer removes a tablet server from the registry.
 // removeTabletServer removes a tablet server from the registry and handles tablet reassignment
-func (ms *MasterServer) removeTabletServer(address string) {
+func (ms *MasterServer) removeTabletServer(address string, crash bool) {
 	ms.State.mu.Lock()
 	defer ms.State.mu.Unlock()
 
@@ -528,10 +530,20 @@ func (ms *MasterServer) removeTabletServer(address string) {
 		for _, tablet := range table.Tablets {
 			if tablet.TabletServer == address {
 				// Find a new tablet server
-				newServer, err := ms.getLeastLoadedTabletServerExcluding(address)
-				if err != nil {
-					log.Printf("Failed to find a new tablet server for table '%s': %v", table.Name, err)
-					continue
+				var newServer string
+				var err error
+				if crash {
+					newServer, err = ms.getLeastLoadedTabletServer()
+					if err != nil {
+						log.Printf("Failed to find a new tablet to recover '%s': %v", table.Name, err)
+						continue
+					}
+				} else {
+					newServer, err = ms.getRecoverTabletExcluding(address)
+					if err != nil {
+						log.Printf("Failed to find a new tablet server for table '%s': %v", table.Name, err)
+						continue
+					}
 				}
 
 				// Calling the RecoverCrashedTablet method for data recovery
@@ -563,6 +575,25 @@ func (ms *MasterServer) getLeastLoadedTabletServer() (string, error) {
 	minCount := -1
 	var selectedServer string
 	for addr, serverInfo := range ms.State.TabletServers {
+		if minCount == -1 || serverInfo.TabletCount < minCount {
+			minCount = serverInfo.TabletCount
+			selectedServer = addr
+		}
+	}
+	if selectedServer == "" {
+		return "", errors.New("no tablet servers available")
+	}
+	return selectedServer, nil
+}
+
+func (ms *MasterServer) getRecoverTabletExcluding(excludeAddr string) (string, error) {
+	minCount := -1
+	var selectedServer string
+	for addr, serverInfo := range ms.State.TabletServers {
+		if addr == excludeAddr {
+			continue
+		}
+
 		if minCount == -1 || serverInfo.TabletCount < minCount {
 			minCount = serverInfo.TabletCount
 			selectedServer = addr

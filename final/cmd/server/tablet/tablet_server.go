@@ -75,7 +75,7 @@ func main() {
 
 	//  clean up
 	server.GracefulStop()
-	tabletService.UnRegisterMyself()
+	//tabletService.UnRegisterMyself()
 	tabletService.CloseMasterConnection()
 	tabletService.CloseAllTables()
 

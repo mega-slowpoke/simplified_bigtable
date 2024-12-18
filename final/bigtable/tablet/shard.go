@@ -20,7 +20,7 @@ func (s *TabletServiceServer) PeriodicallyCheckMaxSize(ctx context.Context, peri
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Stopping PeriodicallyCheckMaxSize...")
+			log.Println("Stop PeriodicallyCheckMaxSize...")
 			return
 		default:
 			time.Sleep(time.Microsecond * time.Duration(period))

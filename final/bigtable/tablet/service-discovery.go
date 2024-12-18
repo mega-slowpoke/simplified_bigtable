@@ -3,6 +3,7 @@ package tablet
 import (
 	"context"
 	ipb "final/proto/internal-api"
+	"log"
 )
 
 func (s *TabletServiceServer) RegisterMyself() error {
@@ -26,6 +27,7 @@ func (s *TabletServiceServer) UnRegisterMyself() error {
 
 	_, err := (*s.MasterClient).UnregisterTablet(context.Background(), request)
 	if err != nil {
+		log.Fatal("fail to unregister")
 		return err
 	}
 
