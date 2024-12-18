@@ -32,40 +32,46 @@ func (s *TabletServiceServer) RecoverCrashedTablet(ctx context.Context, req *ipb
 
 func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tableName string) error {
 	// Step1: create table if not exist
-	dbPath := GetFilePath(s.TabletAddress, tableName)
-	db, err := leveldb.OpenFile(dbPath, nil)
-	if err != nil {
-		logrus.Debugf("create table for recovery server failed: %v", err)
-		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
-	}
-	s.Tables[tableName] = db
-	db.Close() // close the db first so that the recoverData can access data
+	//db, err := leveldb.OpenFile(dbPath, nil)
+	//if err != nil {
+	//	logrus.Debugf("create table for recovery server failed: %v", err)
+	//	return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
+	//}
+	//s.Tables[tableName] = db
+	//db.Close() // close the db first so that the recoverData can access data
 
 	// move data (table contents and metadata) from "sourceServerAddress/tableName" to "s.TabletAddress/tableName"
-	err = s.recoverData(sourceServerAddress, tableName)
+	dbPath := GetFilePath(s.TabletAddress, tableName)
+
+	err := s.recoverData(sourceServerAddress, tableName)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to recover actual data: %v", err)
 	}
 
 	// recover metadata first
-	db, err = leveldb.OpenFile(dbPath, nil)
+	log.Printf("rebuild columns %v", dbPath)
+	db, err := leveldb.OpenFile(dbPath, nil)
 	if err != nil {
-		logrus.Debugf("create table for recovery server failed: %v", err)
-		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
+		logrus.Debugf("open level db for columns rebuild failed: %v", err)
+		return status.Errorf(codes.Internal, "open level db for columns rebuild failed: %v", err)
 	}
+	// rebuild Tables
+	s.Tables[tableName] = db
+
+	// rebuild Columns
 	metadataColumns, err := s.rebuildColumnsMetadata(db)
 	s.TablesColumns[tableName] = metadataColumns
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to rebuild columns metadata: %v", err)
 	}
-	db.Close() // close the db first so that the recoverData can access data
+	db.Close()
 
+	// rebuild Rows
 	db, err = leveldb.OpenFile(dbPath, nil)
 	if err != nil {
-		logrus.Debugf("create table for recovery server failed: %v", err)
-		return status.Errorf(codes.Internal, "create table for recovery server failed: %v", err)
+		logrus.Debugf("open level db for rows rebuild failed: %v", err)
+		return status.Errorf(codes.Internal, "open level db for rows rebuild failed: %v", err)
 	}
-
 	metadataRows, err := s.rebuildRowMetadata(db)
 	s.TablesRows[tableName] = metadataRows
 	if err != nil {
@@ -80,7 +86,7 @@ func (s *TabletServiceServer) MigrateTableToSelf(sourceServerAddress string, tab
 func (s *TabletServiceServer) rebuildRowMetadata(db *leveldb.DB) (map[string]struct{}, error) {
 	data, err := db.Get([]byte("meta_row"), nil)
 	if err != nil {
-		logrus.Fatalf("Read from LevelDB failed: %v", err)
+		logrus.Fatalf("rebuild row read from LevelDB failed: %v", err)
 	}
 
 	// decode serialized data to rebuild rowSet
@@ -99,7 +105,7 @@ func (s *TabletServiceServer) rebuildRowMetadata(db *leveldb.DB) (map[string]str
 func (s *TabletServiceServer) rebuildColumnsMetadata(db *leveldb.DB) (map[string][]string, error) {
 	data, err := db.Get([]byte("meta_column"), nil)
 	if err != nil {
-		logrus.Fatalf("Read from LevelDB failed: %v", err)
+		logrus.Fatalf("rebuild columns read from LevelDB failed: %v", err)
 	}
 
 	// decode serialized data to rebuild rowSet

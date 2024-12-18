@@ -519,7 +519,7 @@ func TestClientShard(t *testing.T) {
 	}
 	defer client.Close()
 
-	MAX_TABLE_CNT := 3 // make sure this is greater than the max_table_cnt you enter when start the tablet
+	MAX_TABLE_CNT := 7 // make sure this is greater than the max_table_cnt you enter when start the tablet
 
 	for i := 0; i < MAX_TABLE_CNT; i++ {
 		tableName := fmt.Sprintf("recover_users_%v", i)

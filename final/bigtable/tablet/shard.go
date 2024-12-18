@@ -36,7 +36,7 @@ func (s *TabletServiceServer) PeriodicallyCheckMaxSize(ctx context.Context, peri
 // checkAndNotifyMasterForShard if the size of any table rows is greater than max size, notify the master to issue a shard command
 // Problem: what if this table is being modified during this time
 func (s *TabletServiceServer) checkAndNotifyMasterForShard() error {
-	if len(s.Tables) < s.MaxTableCnt {
+	if len(s.Tables) <= s.MaxTableCnt {
 		return nil
 	}
 
