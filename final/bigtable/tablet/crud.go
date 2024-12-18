@@ -7,13 +7,14 @@ import (
 	proto "final/proto/external-api"
 	ipb "final/proto/internal-api"
 	"fmt"
+	"log"
+	"os"
+	"sort"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log"
-	"os"
-	"sort"
 )
 
 type ValueWithKeyAndTimestamps struct {
@@ -40,6 +41,9 @@ func (s *TabletServiceServer) CreateTable(ctx context.Context, req *ipb.CreateTa
 	// update table Map
 	s.Tables[tableName] = db
 
+	// Initialize TablesRows for the new table
+	s.TablesRows[tableName] = make(map[string]struct{})
+
 	// update table columns info
 	s.TablesColumns[tableName] = make(map[string][]string)
 	columnFamilyMap := s.TablesColumns[tableName]
@@ -47,7 +51,7 @@ func (s *TabletServiceServer) CreateTable(ctx context.Context, req *ipb.CreateTa
 		columnFamilyMap[columnFamily.FamilyName] = columnFamily.Columns
 	}
 
-	//  persist metadata row so they can be recovered when the server crashes
+	// persist metadata row so they can be recovered when the server crashes
 	err = WriteMetaDataToPersistent("column", columnFamilyMap, db)
 	if err != nil {
 		return nil, err
