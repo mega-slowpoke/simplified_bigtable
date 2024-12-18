@@ -6,6 +6,7 @@ import (
 	ipb "final/proto/internal-api"
 	"flag"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"log"
 	"net"
@@ -13,6 +14,7 @@ import (
 )
 
 func main() {
+	logrus.SetLevel(logrus.DebugLevel)
 	masterAddress := flag.String("master_address", "", "Master service address")
 	flag.Parse()
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"log"
 	"net"
 	"sync"
@@ -162,8 +163,8 @@ func (ms *MasterServer) CreateTable(ctx context.Context, req *epb.CreateTableReq
 			}, nil
 		}
 	}
-
 	log.Printf("Table '%s' created successfully.", req.TableName)
+	logrus.Debugf("Create Table Master: %v", ms.state.Tables)
 	return &epb.CreateTableResponse{
 		Success: true,
 		Message: "Table created successfully.",
@@ -212,6 +213,8 @@ func (ms *MasterServer) DeleteTable(ctx context.Context, req *epb.DeleteTableReq
 func (ms *MasterServer) GetTabletLocation(ctx context.Context, req *epb.GetTabletLocationRequest) (*epb.GetTabletLocationResponse, error) {
 	ms.state.mu.RLock()
 	defer ms.state.mu.RUnlock()
+
+	logrus.Debugf("Get Tablet Location: %v", ms.state.Tables)
 
 	table, exists := ms.state.Tables[req.TableName]
 	if !exists {
