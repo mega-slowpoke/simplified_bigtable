@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package bigtable;
+
+option go_package = "final/proto";
+
+service MasterInternalService {
+  rpc RegisterTablet (RegisterTabletRequest) returns (RegisterTabletResponse);
+  rpc UnregisterTablet (UnregisterTabletRequest) returns (UnregisterTabletResponse);
+
+  rpc NotifyShardRequest(ShardRequest) returns (ShardResponse) {}
+  rpc NotifyShardFinish(ShardFinishNotificationRequest) returns (ShardFinishNotificationResponse) {}
+}
+
+message RegisterTabletRequest {
+  string tablet_address = 1;
+  int32 max_table_cnt = 2;
+}
+
+message RegisterTabletResponse {}
+
+message UnregisterTabletRequest {
+  string tablet_address = 1;
+}
+
+message UnregisterTabletResponse {}
+
+message ShardRequest {
+  string tablet_address = 1;
+  string table_name = 2;
+}
+
+message ShardResponse {
+  string target_tablet_address = 1;
+}
+
+message ShardFinishNotificationRequest {
+  string table_name = 1;
+  string source = 2;
+  string target = 3;
+//  TabletRowRange source = 2; // include info about row range before and after sharding
+//  TabletRowRange target = 3;
+}
+
+//message TabletRowRange {
+//  string tablet_address = 1;
+//  string row_from = 2;
+//  string row_to = 3;
+//}
+
+message ShardFinishNotificationResponse {}
+
