@@ -375,4 +375,5 @@ func (c *Client) Delete(tableName, rowKey, columnFamily, columnQualifier string)
 
 	log.Printf("Delete successful for row key '%s'.", rowKey)
 	return nil
+	sort.Slice()
 }
