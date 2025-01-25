@@ -32,7 +32,7 @@ go.work
 
 **/*.mp4
 **/*.pdf
-./*.txt
+*.txt
 
 .bash_history
 
